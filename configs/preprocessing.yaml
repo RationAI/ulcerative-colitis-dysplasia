@@ -1,0 +1,13 @@
+defaults:
+  - hydra: default
+  - logger: mlflow
+  - _self_
+
+tiling:
+  src_path: foo
+  dest_path: foo
+
+metadata:
+  experiment_name: ???
+  run_name: ???
+  description: ???
