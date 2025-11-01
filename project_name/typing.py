@@ -1,8 +1,5 @@
-from typing import TypeAlias
+type Sample = ...  # TODO define the type returned by Dataset
 
+type Input = ...  # TODO define the model input type
 
-Sample: TypeAlias = ...  # TODO define the type returned by Dataset
-
-Input: TypeAlias = ...  # TODO define the model input type
-
-Outputs: TypeAlias = ...  # TODO define the model output type
+type Outputs = ...  # TODO define the model output type

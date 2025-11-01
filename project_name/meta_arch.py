@@ -6,7 +6,7 @@ from torchmetrics import MetricCollection
 from project_name.typing import Input, Outputs
 
 
-class ProjectNameModel(LightningModule):
+class MetaArch(LightningModule):
     def __init__(self, backbone: nn.Module, decode_head: nn.Module) -> None:
         super().__init__()
         self.backbone = backbone

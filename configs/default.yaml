@@ -3,16 +3,6 @@ defaults:
   - logger: mlflow
   - _self_
 
-seed: ${random_seed:}
-mode: ???
-checkpoint: null
-
-trainer: {}
-
-data: {}
-
-model: {}
-
 metadata:
   experiment_name: ???
   run_name: ???
