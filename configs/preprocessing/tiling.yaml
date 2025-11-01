@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - base
+  - _self_
+
+artifact_path: ???
+
+metadata:
+  run_name: Tiling
+  description: ???
