@@ -1,10 +1,10 @@
 # @package _global_
 
 defaults:
-  - base
+  - /default
   - _self_
 
-artifact_path: ???
+mlflow_artifact_path: tiling
 
 metadata:
   run_name: Tiling

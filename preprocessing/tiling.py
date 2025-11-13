@@ -11,7 +11,7 @@ from rationai.mlkit.lightning.loggers import MLFlowLogger
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     # TODO: Implement tiling logic using rationai.tiling library
     # Reference: https://rationai.gitlab-pages.ics.muni.cz/digital-pathology/libraries/tiling/
-    logger.log_artifacts(config.data_path, config.artifact_path)
+    logger.log_artifacts(config.data_path, config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":
