@@ -4,14 +4,7 @@ defaults:
   - /default
   - _self_
 
-request_limit: 4
-request_timeout: 100000
-report_request_timeout: 24000
-num_repeats: 5
-url: "http://rayservice-qc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000/"
-mask_level: ???
-sample_level: ???
-output_path: ${project_path}/qc_masks
+output_path: ${data_path}/qc_masks
 
 metadata:
   run_name: QC Masks

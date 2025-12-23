@@ -11,3 +11,5 @@ mlflow_artifact_path: tissue_masks
 metadata:
   run_name: Tissue Masks
   description: ???
+  hyperparams:
+    level: ${level}

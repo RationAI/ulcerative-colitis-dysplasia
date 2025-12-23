@@ -11,10 +11,12 @@ dependencies = [
     "torchmetrics>=1.4.1",
     "rationai-mlkit>=0.2.0",
     "mlflow<3.0",
+    "rationai",
 ]
 
 [tool.uv.sources]
 rationai-mlkit = { git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/libraries/mlkit.git" }
+rationai = { git = "https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" }
 
 [dependency-groups]
 dev = ["mypy", "ruff"]
