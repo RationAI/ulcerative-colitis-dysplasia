@@ -7,7 +7,4 @@ data_path: /mnt/data/..  # TODO: enter the raw data folder
 project_path: /mnt/projects/..  # TODO: enter the project folder
 
 metadata:
-  experiment_name: ???
-  run_name: ???
-  description: ???
-  hyperparams: {}
+  experiment_name: ??? # TODO: enter the MLFlow project/experiment name

@@ -5,12 +5,12 @@ from pathlib import Path
 import hydra
 import rationai
 from omegaconf import DictConfig
-from rationai.mlkit.autolog import autolog
+from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from tqdm.asyncio import tqdm
 
 
-async def qc_main(output_path: str, report_path: str, slides: list[str]) -> None:
+async def qc_main(output_path: str, slides: list[str]) -> None:
     async with rationai.AsyncClient() as client:
         async for result in tqdm(
             client.qc.check_slides(slides, output_path),
@@ -25,12 +25,13 @@ async def qc_main(output_path: str, report_path: str, slides: list[str]) -> None
         await client.qc.generate_report(
             backgrounds=slides,
             mask_dir=output_path,
-            save_location=report_path,
+            save_location=output_path,
             compute_metrics=True,
         )
 
 
-@hydra.main(config_path="../configs", config_name="preprocessing/qc", version_base=None)
+@with_cli_args(["+preprocessing=qc"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     output_path = Path(config.output_path)
@@ -38,13 +39,10 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
     slides: list[str] = ...  # Load slide paths
 
-    with tempfile.TemporaryDirectory(
-        prefix="qc_masks_report_", dir=config.project_dir
-    ) as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix="qc_", dir=config.project_dir) as tmp_dir:
         asyncio.run(
             qc_main(
-                output_path=output_path.absolute().as_posix(),
-                report_path=tmp_dir,
+                Path(tmp_dir).absolute().as_posix(),
                 slides=slides,
             )
         )

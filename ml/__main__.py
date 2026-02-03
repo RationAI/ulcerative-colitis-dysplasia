@@ -6,8 +6,8 @@ from omegaconf import DictConfig, OmegaConf
 from rationai.mlkit import Trainer, autolog
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 
-from project_name.data import DataModule
-from project_name.meta_arch import MetaArch
+from ml.data import DataModule
+from ml.meta_arch import MetaArch
 
 
 OmegaConf.register_new_resolver(
