@@ -1,0 +1,52 @@
+# General Dataset Information
+dataset:
+  folder: "/mnt/data/IKEM/colon/IBD_AI/dysplasia"
+  labels: "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/annotations"
+  regex_pattern: "_HE_"
+  local_path: "outputs/dataset.csv" 
+
+tissue_mask:
+  output_dir: "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/tissue_masks" 
+  level: 3
+  max_concurrent: 4
+  artifact_path: "tissue_masks"
+
+annotation_mask:
+  dir: "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/annotations"
+  output_dir: "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/annotation_masks"
+  level: 3
+  max_concurrent: 4
+  target_groups:
+    "LG Dysplasia": 255
+    "HG Dysplasia": 192
+    "Loose HG Dysplasia": 128
+
+quality_control:
+  output_dir: "outputs/qc"
+  request_timeout: 18000
+  max_concurrent: 5
+  parameters:
+    mask_level: 2
+    sample_level: 0
+    check_residual: true
+    check_folding: true
+    check_focus: true
+    wb_correction: true
+
+tiling:
+  output_dir: "outputs/tiling"
+  mpp: 1.55
+  tile_extent: 224
+  stride: 112
+  tissue_threshold: 0.5
+
+tile_mask:
+  output_path: "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/tile_masks"
+  max_concurrent: 5
+  tile_uris: []
+  percentage_cols: ["LG Dysplasia", "HG Dysplasia", "Loose HG Dysplasia"]
+
+logger:
+  _target_: rationai.mlkit.lightning.loggers.MLFlowLogger
+  experiment_name: "dysplasia-preprocessing"
+  tracking_uri: ${oc.env:MLFLOW_TRACKING_URI, "http://mlflow.rationai-mlflow:5000"}
