@@ -1,7 +1,7 @@
 # @package _global_
 
-dataset_uri: ???
-request_timeout: 18000
+dataset_uri: mlflow-artifacts:/111/6cb6ff6f15844187b2f8f8218f35bec0/artifacts/dataset.csv
+request_timeout: 300
 max_concurrent: 5
 
 qc_parameters:
