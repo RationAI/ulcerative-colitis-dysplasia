@@ -111,7 +111,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
         process_items(
             df["slide_path"].tolist(),
-            process_item=process_slide, # type: ignore[arg-type]
+            process_item=process_slide,  # type: ignore[arg-type]
             fn_kwargs={
                 "annot_path": annot_path,
                 "level": config.level,
