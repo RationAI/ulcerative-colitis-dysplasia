@@ -1,0 +1,8 @@
+# @package _global_
+
+annot_mlflow_uri: mlflow-artifacts:/111/6dcecb74167b4de1a4b8d7e3bb4d4a61/artifacts/annotations
+regex_pattern: "_HE_"
+
+metadata:
+  run_name: "📂 Dataset Creation"
+  description: "Create dataset for dysplasia project"

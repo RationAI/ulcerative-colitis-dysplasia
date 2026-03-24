@@ -3,8 +3,8 @@ defaults:
   - logger: mlflow
   - _self_
 
-data_path: /mnt/data/..  # TODO: enter the raw data folder
+data_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia
 project_path: /mnt/projects/..  # TODO: enter the project folder
 
 metadata:
-  experiment_name: ??? # TODO: enter the MLFlow project/experiment name
+  experiment_name: Ulcerative Colitis Dysplasia
