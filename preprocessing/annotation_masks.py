@@ -39,7 +39,7 @@ class JSONPolygonMask:
         if not self.json_path.exists():
             return np.array(mask_img)
 
-        with open(self.json_path, "r") as f:
+        with open(self.json_path) as f:
             data = json.load(f)
 
         for item in data.get("items", []):
@@ -63,7 +63,7 @@ def process_slide(
     annot_path: Path,
     level: int,
     output_base: Path,
-    target_groups: list[str],
+    target_groups: dict[str, int],
     logger: MLFlowLogger,
 ) -> str:
     slide_p = Path(slide_path)
@@ -89,7 +89,9 @@ def process_slide(
     save_path = output_base / f"{slide_p.stem}.tiff"
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    write_big_tiff(vips_mask, str(save_path), mpp_x=mpp_x, mpp_y=mpp_y)
+    write_big_tiff(vips_mask, save_path, mpp_x=mpp_x, mpp_y=mpp_y)
+
+    return f"Success: {slide_p.name}"
 
 
 @with_cli_args(["+preprocessing=annotation_masks"])
@@ -109,7 +111,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
         process_items(
             df["slide_path"].tolist(),
-            process_item=process_slide,
+            process_item=process_slide, # type: ignore[arg-type]
             fn_kwargs={
                 "annot_path": annot_path,
                 "level": config.level,
