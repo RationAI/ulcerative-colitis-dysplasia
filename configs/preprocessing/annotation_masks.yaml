@@ -1,0 +1,10 @@
+# @package _global_
+
+dataset_uri: ???
+annot_mlflow_uri: ???
+level: 3
+max_concurrent: 4
+
+metadata:
+  run_name: "✍ Annotation masks Creation"
+  description: "Create Annotation masks from manual annotations"

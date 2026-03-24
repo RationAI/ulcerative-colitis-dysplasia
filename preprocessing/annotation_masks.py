@@ -1,15 +1,16 @@
 import json
-import ray
-import pandas as pd
-import pyvips
-import numpy as np
+import tempfile
 from pathlib import Path
 
 import hydra
+import mlflow
+import numpy as np
+import pandas as pd
+import pyvips
+import ray
 from omegaconf import DictConfig
 from openslide import OpenSlide
 from PIL import Image, ImageDraw
-
 from rationai.masks import slide_resolution, write_big_tiff
 from rationai.masks.processing import process_items
 from rationai.mlkit import autolog, with_cli_args
@@ -59,13 +60,14 @@ class JSONPolygonMask:
 @ray.remote
 def process_slide(
     slide_path: str,
-    annot_dir: str,
+    annot_path: Path,
     level: int,
     output_base: Path,
     target_groups: list[str],
+    logger: MLFlowLogger,
 ) -> str:
     slide_p = Path(slide_path)
-    json_path = Path(annot_dir) / f"{slide_p.stem}.json"
+    json_path = annot_path / f"{slide_p.stem}.json"
 
     if not json_path.exists():
         return f"Skipped: No JSON for {slide_p.name}"
@@ -80,7 +82,7 @@ def process_slide(
     mask_array = parser()
 
     if mask_array.max() == 0:
-        print(f"Empty mask for {slide_p.name}")
+        logger.log_stream(f"Empty mask for {slide_p.name}")
 
     vips_mask = pyvips.Image.new_from_array(mask_array)
 
@@ -90,31 +92,35 @@ def process_slide(
     write_big_tiff(vips_mask, str(save_path), mpp_x=mpp_x, mpp_y=mpp_y)
 
 
-@with_cli_args([])
-@hydra.main(config_path="conf", config_name="default", version_base=None)
+@with_cli_args(["+preprocessing=annotation_masks"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    df = pd.read_csv(config.dataset.local_path)
-
-    output_path = Path(config.annotation_mask.output_dir)
-    output_path.mkdir(exist_ok=True, parents=True)
-
-    process_items(
-        df["slide_path"].tolist(),
-        process_item=process_slide,
-        fn_kwargs={
-            "annot_dir": config.annotation_mask.dir,
-            "level": config.annotation_mask.level,
-            "output_base": output_path,
-            "target_groups": config.annotation_mask.target_groups,
-        },
-        max_concurrent=config.annotation_mask.max_concurrent,
+    dataset_path = Path(
+        mlflow.artifacts.download_artifacts(artifact_uri=config.dataset_uri)
+    )
+    annot_path = Path(
+        mlflow.artifacts.download_artifacts(artifact_uri=config.annot_mlflow_uri)
     )
 
-    # if logger:
-    #     logger.log_artifacts(
-    #         local_dir=str(output_path), artifact_path="annotation_masks"
-    #     )
+    df = pd.read_csv(dataset_path)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        process_items(
+            df["slide_path"].tolist(),
+            process_item=process_slide,
+            fn_kwargs={
+                "annot_path": annot_path,
+                "level": config.level,
+                "output_base": tmpdir_path,
+                "target_groups": config.target_groups,
+                "logger": logger,
+            },
+            max_concurrent=config.max_concurrent,
+        )
+
+        logger.log_artifacts(str(tmpdir_path), "annot_masks")
 
 
 if __name__ == "__main__":
