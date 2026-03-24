@@ -86,8 +86,8 @@ async def qc_main(
         logger.log_artifacts(local_dir=str(output_path))
 
 
-@with_cli_args([])
-@hydra.main(config_path="conf", config_name="default", version_base=None)
+@with_cli_args(["+preprocessing=qc"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     dataset = pd.read_csv(config.dataset.local_path)
