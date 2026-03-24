@@ -1,11 +1,9 @@
 # @package _global_
 
-level: ??? # TODO: set, for marojiry of projects levels 3 to 5 should be a good choice
-max_concurrent: 8
-mlflow_artifact_path: tissue_masks
+dataset_uri: mlflow-artifacts:/111/6cb6ff6f15844187b2f8f8218f35bec0/artifacts/dataset.csv
+level: 3
+max_concurrent: 4
 
 metadata:
-  run_name: Tissue Masks ${dataset.name}
-  hyperparams:
-    level: ${level}
-
+  run_name: "🧻 Tissue masks Creation"
+  description: "Create tissue masks for dysplasia project"
