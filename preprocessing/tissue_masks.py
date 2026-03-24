@@ -31,7 +31,7 @@ def process_slide(slide_path: str, level: int, output_path: Path) -> None:
     image = cast("pyvips.Image", pyvips.Image.new_from_file(slide_path, level=level))
     mask = tissue_mask(image, mpp=(mpp_x + mpp_y) / 2)
 
-    write_big_tiff(mask, path=str(mask_path), mpp_x=mpp_x, mpp_y=mpp_y)
+    write_big_tiff(mask, path=mask_path, mpp_x=mpp_x, mpp_y=mpp_y)
 
 
 @with_cli_args(["+preprocessing=tissue_masks"])
@@ -48,7 +48,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
         process_items(
             dataset["slide_path"],
-            process_item=process_slide,  # type: ignore[arg-type]
+            process_item=process_slide,
             fn_kwargs={
                 "level": config.level,
                 "output_path": tmpdir_path,
@@ -56,7 +56,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             max_concurrent=config.max_concurrent,
         )
 
-        logger.log_artifacts(tmpdir_path, "tissue_masks")
+        logger.log_artifacts(str(tmpdir_path), "tissue_masks")
 
 
 if __name__ == "__main__":

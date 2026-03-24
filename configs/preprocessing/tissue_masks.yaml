@@ -1,6 +1,6 @@
 # @package _global_
 
-dataset_uri: mlflow-artifacts:/111/6cb6ff6f15844187b2f8f8218f35bec0/artifacts/dataset.csv
+dataset_uri: ???
 level: 3
 max_concurrent: 4
 
