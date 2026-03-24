@@ -1,9 +1,10 @@
 import re
-import pandas as pd
-from pathlib import Path
 import tempfile
-import mlflow
+from pathlib import Path
+
 import hydra
+import mlflow
+import pandas as pd
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
@@ -23,7 +24,7 @@ def get_annot(folder_path: Path) -> pd.DataFrame:
     return df.set_index("slide_id")
 
 
-def get_slides(folder_path: Path, pattern: re.Pattern) -> pd.DataFrame:
+def get_slides(folder_path: Path, pattern: re.Pattern[str]) -> pd.DataFrame:
     """Scans for .czi files and stores their absolute paths."""
     data = []
     for slide_path in folder_path.glob("*.czi"):
