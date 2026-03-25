@@ -1,7 +1,5 @@
 # @package _global_
 
-dataset_uri: mlflow-artifacts:/111/8754a5c495d14ad2b5eacfcafd8087f5/artifacts/dataset.csv
-annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
 level: 3
 max_concurrent: 4
 target_groups:
