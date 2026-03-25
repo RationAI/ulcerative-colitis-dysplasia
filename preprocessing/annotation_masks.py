@@ -36,9 +36,6 @@ class JSONPolygonMask:
         mask_img = Image.new("L", self.mask_size, 0)
         draw = ImageDraw.Draw(mask_img)
 
-        if not self.json_path.exists():
-            return np.array(mask_img)
-
         with open(self.json_path) as f:
             data = json.load(f)
 
@@ -101,9 +98,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     dataset_path = Path(
         mlflow.artifacts.download_artifacts(artifact_uri=config.dataset_uri)
     )
-    annot_path = Path(
-        mlflow.artifacts.download_artifacts(artifact_uri=config.annot_mlflow_uri)
-    )
+    annot_path = Path(config.annot_path)
 
     df = pd.read_csv(dataset_path)
     with tempfile.TemporaryDirectory() as tmpdir:
