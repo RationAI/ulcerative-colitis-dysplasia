@@ -1,6 +1,7 @@
 # @package _global_
 
-annot_mlflow_uri: ???
+annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
+selected_cases_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
 regex_pattern: "_HE_"
 
 metadata:

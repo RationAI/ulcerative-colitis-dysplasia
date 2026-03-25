@@ -3,7 +3,6 @@ import tempfile
 from pathlib import Path
 
 import hydra
-import mlflow
 import pandas as pd
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
@@ -14,8 +13,14 @@ def get_annot(folder_path: Path) -> pd.DataFrame:
     """Scans for .json files and stores their absolute paths."""
     data = []
     for json_path in folder_path.glob("*.json"):
+        parts = json_path.stem.split("_")
+        case_id = f"{parts[0]}/{parts[1]}"
         data.append(
-            {"slide_id": json_path.stem, "annot_path": str(json_path.absolute())}
+            {
+                "slide_id": json_path.stem,
+                "case_id": case_id,
+                "annot_path": str(json_path.absolute()),
+            }
         )
 
     df = pd.DataFrame(data)
@@ -31,8 +36,14 @@ def get_slides(folder_path: Path, pattern: re.Pattern[str]) -> pd.DataFrame:
         if not pattern.search(slide_path.name):
             continue
 
+        parts = slide_path.stem.split("_")
+        case_id = f"{parts[0]}/{parts[1]}"
         data.append(
-            {"slide_id": slide_path.stem, "slide_path": str(slide_path.absolute())}
+            {
+                "slide_id": slide_path.stem,
+                "case_id": case_id,
+                "slide_path": str(slide_path.absolute()),
+            }
         )
 
     df = pd.DataFrame(data)
@@ -42,23 +53,26 @@ def get_slides(folder_path: Path, pattern: re.Pattern[str]) -> pd.DataFrame:
 
 
 def create_dataset(
-    slide_folder: str, annot_uri: str, pattern_str: str
+    slides_path: str, annot_path: str, selected_slides_path: str, pattern_str: str
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
 
-    slide_path = Path(slide_folder)
-    annot_path = Path(mlflow.artifacts.download_artifacts(artifact_uri=annot_uri))
+    slide_path = Path(slides_path)
+    annot_path = Path(annot_path)
     pattern = re.compile(pattern_str)
 
     slides_df = get_slides(slide_path, pattern)
     annot_df = get_annot(annot_path)
+    selected_cases = pd.read_excel(selected_slides_path, skiprows=[0, 1], header=None)
+    case_ids = selected_cases.iloc[:, 1].dropna().astype(str).str.strip().tolist()
 
-    dataset_df = slides_df.join(annot_df, how="outer")
+    dataset_df = slides_df.join(annot_df, how="outer", rsuffix="_drop")
+    dataset_df = dataset_df[dataset_df["case_id"].isin(case_ids)]
 
     missing_slides = dataset_df[dataset_df["slide_path"].isna()].index.to_list()
     missing_labels = dataset_df[dataset_df["annot_path"].isna()].index.to_list()
 
     dataset_df = dataset_df.dropna(subset=["slide_path", "annot_path"])
-    dataset_df = dataset_df[["slide_path"]]
+    dataset_df = dataset_df[["case_id", "slide_path", "annot_path"]]
 
     return dataset_df, missing_slides, missing_labels
 
@@ -70,7 +84,8 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
     dataset, missing_slides, missing_labels = create_dataset(
         config.data_path,
-        config.annot_mlflow_uri,
+        config.annot_path,
+        config.selected_cases_path,
         config.regex_pattern,
     )
 
