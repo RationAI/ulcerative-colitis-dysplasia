@@ -1,0 +1,12 @@
+# @package _global_
+
+level: 3
+max_concurrent: 4
+target_groups:
+  "LG Dysplasia": 255
+  "HG Dysplasia": 128
+  "Loose HG Dysplasia": 128
+
+metadata:
+  run_name: "✍ Annotation masks Creation"
+  description: "Create Annotation masks from manual annotations"
