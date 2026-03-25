@@ -1,9 +1,5 @@
 # @package _global_
 
-annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
-selected_cases_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
-regex_pattern: "_HE_"
-
 metadata:
   run_name: "📂 Dataset Creation"
   description: "Create dataset for dysplasia project"

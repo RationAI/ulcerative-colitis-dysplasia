@@ -9,46 +9,35 @@ from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 
 
-def get_annot(folder_path: Path) -> pd.DataFrame:
-    """Scans for .json files and stores their absolute paths."""
+def extract_case_id(stem: str) -> str:
+    parts = stem.split("_")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid slide/annotation name format: {stem}")
+    return f"{parts[0]}/{parts[1]}"
+
+
+def get_df(
+    folder_path: Path, pattern: re.Pattern[str], conf: dict[str, str]
+) -> pd.DataFrame:
     data = []
-    for json_path in folder_path.glob("*.json"):
-        parts = json_path.stem.split("_")
-        case_id = f"{parts[0]}/{parts[1]}"
-        data.append(
-            {
-                "slide_id": json_path.stem,
-                "case_id": case_id,
-                "annot_path": str(json_path.absolute()),
-            }
-        )
-
-    df = pd.DataFrame(data)
-    if df.empty:
-        return pd.DataFrame(columns=["slide_id", "annot_path"]).set_index("slide_id")
-    return df.set_index("slide_id")
-
-
-def get_slides(folder_path: Path, pattern: re.Pattern[str]) -> pd.DataFrame:
-    """Scans for .czi files and stores their absolute paths."""
-    data = []
-    for slide_path in folder_path.glob("*.czi"):
+    for slide_path in folder_path.glob(conf["ext"]):
         if not pattern.search(slide_path.name):
             continue
 
-        parts = slide_path.stem.split("_")
-        case_id = f"{parts[0]}/{parts[1]}"
+        case_id = extract_case_id(slide_path.stem)
         data.append(
             {
                 "slide_id": slide_path.stem,
                 "case_id": case_id,
-                "slide_path": str(slide_path.absolute()),
+                f"{conf['key']}_path": str(slide_path.absolute()),
             }
         )
 
     df = pd.DataFrame(data)
     if df.empty:
-        return pd.DataFrame(columns=["slide_id", "slide_path"]).set_index("slide_id")
+        return pd.DataFrame(
+            columns=["slide_id", "case_id", f"{conf['key']}_path"]
+        ).set_index("slide_id")
     return df.set_index("slide_id")
 
 
@@ -56,12 +45,18 @@ def create_dataset(
     slides_path: str, annot_path: str, selected_slides_path: str, pattern_str: str
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
 
-    slides_df = get_slides(Path(slides_path), re.compile(pattern_str))
-    annot_df = get_annot(Path(annot_path))
+    slides_df = get_df(
+        Path(slides_path), re.compile(pattern_str), {"key": "slide", "ext": "*.czi"}
+    )
+    annot_df = get_df(
+        Path(annot_path), re.compile(pattern_str), {"key": "annot", "ext": "*.json"}
+    )
+
     selected_cases = pd.read_excel(selected_slides_path, skiprows=[0, 1], header=None)
     case_ids = selected_cases.iloc[:, 1].dropna().astype(str).str.strip().tolist()
 
     dataset_df = slides_df.join(annot_df, how="outer", rsuffix="_drop")
+    dataset_df["case_id"] = dataset_df["case_id"].fillna(dataset_df["case_id_drop"])
     dataset_df = dataset_df[dataset_df["case_id"].isin(case_ids)]
 
     missing_slides = dataset_df[dataset_df["slide_path"].isna()].index.to_list()
