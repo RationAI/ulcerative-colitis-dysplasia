@@ -1,57 +1,18 @@
-import json
 import tempfile
 from pathlib import Path
 
 import hydra
 import mlflow
-import numpy as np
 import pandas as pd
 import pyvips
 import ray
 from omegaconf import DictConfig
 from openslide import OpenSlide
-from PIL import Image, ImageDraw
 from rationai.masks import slide_resolution, write_big_tiff
 from rationai.masks.processing import process_items
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
-
-
-class JSONPolygonMask:
-    """Parses JSON annotations and renders them into a multi-class mask array."""
-
-    def __init__(
-        self,
-        json_path: Path,
-        mask_size: tuple[int, int],
-        scale_factor: float,
-        target_groups: dict[str, int],
-    ):
-        self.json_path = json_path
-        self.mask_size = mask_size  # (width, height)
-        self.scale = scale_factor
-        self.target_groups = target_groups
-
-    def __call__(self) -> np.ndarray:
-        mask_img = Image.new("L", self.mask_size, 0)
-        draw = ImageDraw.Draw(mask_img)
-
-        with open(self.json_path) as f:
-            data = json.load(f)
-
-        for item in data.get("items", []):
-            class_name = item.get("name")
-
-            if class_name in self.target_groups:
-                coords = item.get("coordinates", [])
-                if not coords:
-                    continue
-
-                fill_value = self.target_groups[class_name]
-                scaled_coords = [(c[0] * self.scale, c[1] * self.scale) for c in coords]
-                draw.polygon(scaled_coords, fill=fill_value)
-
-        return np.array(mask_img)
+from ratiopath.parsers import JSONMultiClassMask
 
 
 @ray.remote
@@ -75,7 +36,7 @@ def process_slide(
         mask_dim = slide.level_dimensions[level]
         scale = mask_dim[0] / full_dim[0]
 
-    parser = JSONPolygonMask(json_path, mask_dim, scale, target_groups)
+    parser = JSONMultiClassMask(json_path, mask_dim, scale, target_groups)
     mask_array = parser()
 
     if mask_array.max() == 0:
