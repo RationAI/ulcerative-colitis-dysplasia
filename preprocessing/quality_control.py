@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Generator
 from pathlib import Path
 from typing import TypedDict
-import mlflow
+
 import hydra
 import pandas as pd
 import rationai
@@ -12,7 +12,6 @@ from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from rationai.types import SlideCheckConfig
 from tqdm.asyncio import tqdm
-import tempfile
 
 
 class QCParameters(TypedDict):
@@ -55,8 +54,6 @@ async def qc_main(
     max_concurrent: int,
     qc_parameters: QCParameters,
 ) -> None:
-    slides = list(slides[0:2])
-    print("start")
     async with rationai.AsyncClient() as client:
         async for result in tqdm(
             client.qc.check_slides(
@@ -68,14 +65,11 @@ async def qc_main(
             ),
             total=len(slides),
         ):
-            print("progress")
             if not result.success:
-                print("CHYBA!!!")
                 with open(output_path / "qc_errors.log", "a") as log_file:
                     log_file.write(
                         f"Failed to process {result.wsi_path}: {result.error}\n"
                     )
-                    print(f"Failed to process {result.wsi_path}: {result.error}\n")
 
         for prefix, artifact_name in get_qc_masks(qc_parameters):
             organize_masks(Path(output_path), artifact_name, prefix)
@@ -93,24 +87,23 @@ async def qc_main(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset_path = Path(download_artifacts(artifact_uri=config.dataset_uri))
-    dataset = pd.read_csv(dataset_path)
+    dataset = pd.read_csv(Path(download_artifacts(artifact_uri=config.dataset_uri)))
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = Path(tmpdir)
+    output_path = Path(config.output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-        asyncio.run(
-            qc_main(
-                output_path=tmpdir_path,
-                slides=dataset["slide_path"].to_list(),
-                logger=logger,
-                request_timeout=config.request_timeout,
-                max_concurrent=config.max_concurrent,
-                qc_parameters=config.qc_parameters,
-            )
+    asyncio.run(
+        qc_main(
+            output_path=output_path,
+            slides=dataset["slide_path"].to_list(),
+            logger=logger,
+            request_timeout=config.request_timeout,
+            max_concurrent=config.max_concurrent,
+            qc_parameters=config.qc_parameters,
         )
+    )
 
-        logger.log_artifacts(str(tmpdir_path), "qc_output")
+    logger.log_artifacts(str(output_path), "qc_output")
 
 
 if __name__ == "__main__":
