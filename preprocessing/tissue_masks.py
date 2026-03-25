@@ -56,7 +56,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             max_concurrent=config.max_concurrent,
         )
 
-        logger.log_artifacts(str(tmpdir_path), "tissue_masks")
+        logger.log_artifacts(str(tmpdir_path), config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":
