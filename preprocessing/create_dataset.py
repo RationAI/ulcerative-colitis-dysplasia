@@ -56,12 +56,8 @@ def create_dataset(
     slides_path: str, annot_path: str, selected_slides_path: str, pattern_str: str
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
 
-    slide_path = Path(slides_path)
-    annot_path = Path(annot_path)
-    pattern = re.compile(pattern_str)
-
-    slides_df = get_slides(slide_path, pattern)
-    annot_df = get_annot(annot_path)
+    slides_df = get_slides(Path(slides_path), re.compile(pattern_str))
+    annot_df = get_annot(Path(annot_path))
     selected_cases = pd.read_excel(selected_slides_path, skiprows=[0, 1], header=None)
     case_ids = selected_cases.iloc[:, 1].dropna().astype(str).str.strip().tolist()
 
