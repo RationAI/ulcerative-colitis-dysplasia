@@ -5,9 +5,9 @@ from typing import TypedDict
 
 import hydra
 import pandas as pd
-import rationai
 from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
+from rationai import AsyncClient
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from rationai.types import SlideCheckConfig
@@ -54,7 +54,7 @@ async def qc_main(
     max_concurrent: int,
     qc_parameters: QCParameters,
 ) -> None:
-    async with rationai.AsyncClient() as client:
+    async with AsyncClient() as client:
         async for result in tqdm(
             client.qc.check_slides(
                 slides,
