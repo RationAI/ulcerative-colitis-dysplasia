@@ -10,8 +10,6 @@ from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
-
-# from rationai.tiling.writers import save_mlflow_dataset
 from ratiopath.ray import read_slides
 from ratiopath.tiling import grid_tiles, tile_overlay_overlap
 from ratiopath.tiling.utils import row_hash
@@ -156,9 +154,6 @@ def tiling(
         .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
-    # if "fold" in df.columns:
-    #     slides = slides.map(add_fold, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-
     tissue_roi = create_tissue_roi(tile_extent)
     full_roi = create_full_roi(tile_extent)
 
@@ -244,11 +239,6 @@ def tiling(
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
-    # for name, split_uri in config.dataset.mlflow_uris.splits.items():
-    # split = pd.read_csv(
-    #     mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
-    # )
-
     qc_folder = Path(download_artifacts(config.qc_mlflow_uri))
     tissue_folder = Path(download_artifacts(config.tissue_mlflow_uri))
     annot_folder = Path(download_artifacts(config.annot_mlflow_uri))
@@ -267,9 +257,6 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         tissue_threshold=config.tissue_threshold,
         target_groups=config.target_groups,
     )
-    # save_mlflow_dataset(
-    #     df_slides, df_tiles, "tiling"
-    # )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         df_slides.to_parquet(f"{tmpdir}/slides.parquet", index=False)
