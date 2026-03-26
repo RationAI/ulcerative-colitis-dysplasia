@@ -1,10 +1,12 @@
+import tempfile
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
 import hydra
-import mlflow.artifacts
+import mlflow
 import pandas as pd
 import ray
+from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
@@ -57,8 +59,8 @@ def add_mask_paths(
     stem = Path(row["path"]).stem
     row["tissue_mask_path"] = str(tissue_folder / f"{stem}.tiff")
     row["annotation_mask_path"] = str(annot_folder / f"{stem}.tiff")
-    # for key, subfolder in QC_SUBFOLDERS.items():
-    #     row[f"{key}_mask_path"] = str(qc_folder / subfolder / f"{stem}.tiff")
+    for key, subfolder in QC_SUBFOLDERS.items():
+        row[f"{key}_mask_path"] = str(qc_folder / subfolder / f"{stem}.tiff")
 
     return row
 
@@ -69,11 +71,7 @@ def create_tissue_roi(tile_extent: int) -> Polygon:
     return box(offset, offset, offset + size, offset + size)
 
 
-def create_annotation_roi(tile_extent: int) -> Polygon:
-    return box(0, 0, tile_extent, tile_extent)
-
-
-def create_qc_roi(tile_extent: int) -> Polygon:
+def create_full_roi(tile_extent: int) -> Polygon:
     return box(0, 0, tile_extent, tile_extent)
 
 
@@ -91,8 +89,8 @@ def tile(row: dict[str, Any]) -> list[dict[str, Any]]:
             "mpp_y": row["mpp_y"],
             "tissue_mask_path": row["tissue_mask_path"],
             "annotation_mask_path": row["annotation_mask_path"],
-            # "blur_mask_path": row["blur_mask_path"],
-            # "artifacts_mask_path": row["artifacts_mask_path"],
+            "blur_mask_path": row["blur_mask_path"],
+            "artifacts_mask_path": row["artifacts_mask_path"],
         }
         for x, y in grid_tiles(
             slide_extent=(row["extent_x"], row["extent_y"]),
@@ -103,7 +101,7 @@ def tile(row: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def extract_coverages(
-    row: dict[str, Any], *cols: str, target_groups: dict[str, int] = None
+    row: dict[str, Any], *cols: str, target_groups: dict[str, int] | None = None
 ) -> dict[str, Any]:
     for c in cols:
         overlap = row.get(f"{c}_overlap", {})
@@ -132,9 +130,8 @@ def select(row: dict[str, Any]) -> dict[str, Any]:
         "annotation": row["annotation"],
         "LG Dysplasia": row["LG Dysplasia"],
         "HG Dysplasia": row["HG Dysplasia"],
-        "Loose HG Dysplasia": row["Loose HG Dysplasia"],
-        # "blur": row["blur"],
-        # "artifacts": row["artifacts"],
+        "blur": row["blur"],
+        "artifacts": row["artifacts"],
     }
 
 
@@ -149,22 +146,20 @@ def tiling(
     tissue_threshold: float,
     target_groups: dict[str, int],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    # qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
+    qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
     paths = df["slide_path"].tolist()
 
     slides = (
-        read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp).map(
-            row_hash, **LO_CPU, **LO_MEM
-        )
-        # .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
+        .map(row_hash, **LO_CPU, **LO_MEM)
+        .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
     # if "fold" in df.columns:
     #     slides = slides.map(add_fold, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
 
     tissue_roi = create_tissue_roi(tile_extent)
-    annotation_roi = create_annotation_roi(tile_extent)
-    qc_roi = create_qc_roi(tile_extent)
+    full_roi = create_full_roi(tile_extent)
 
     tiles = (
         slides.map(
@@ -191,7 +186,7 @@ def tiling(
         .with_column(
             "annotation_overlap",
             tile_overlay_overlap(
-                annotation_roi,
+                full_roi,
                 col("annotation_mask_path"),
                 col("tile_x"),
                 col("tile_y"),
@@ -210,89 +205,76 @@ def tiling(
             **LO_MEM,
         )  # pyright: ignore[reportArgumentType]
         .filter(filter_tissue, fn_args=(tissue_threshold,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-        # .with_column(
-        #     "blur_overlap",
-        #     tile_overlay_overlap(
-        #         qc_roi,
-        #         col("blur_mask_path"),
-        #         col("tile_x"),
-        #         col("tile_y"),
-        #         col("mpp_x"),
-        #         col("mpp_y"),
-        #     ),  # pyright: ignore[reportCallIssue]
-        #     **HI_CPU,
-        #     **HI_MEM,
-        # )
-        # .with_column(
-        #     "artifacts_overlap",
-        #     tile_overlay_overlap(
-        #         qc_roi,
-        #         col("artifacts_mask_path"),
-        #         col("tile_x"),
-        #         col("tile_y"),
-        #         col("mpp_x"),
-        #         col("mpp_y"),
-        #     ),  # pyright: ignore[reportCallIssue]
-        #     **HI_CPU,
-        #     **HI_MEM,
-        # )
-        # .map(extract_coverages, fn_args=("blur", "artifacts"), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        .with_column(
+            "blur_overlap",
+            tile_overlay_overlap(
+                full_roi,
+                col("blur_mask_path"),
+                col("tile_x"),
+                col("tile_y"),
+                col("mpp_x"),
+                col("mpp_y"),
+            ),  # pyright: ignore[reportCallIssue]
+            **HI_CPU,
+            **HI_MEM,
+        )
+        .with_column(
+            "artifacts_overlap",
+            tile_overlay_overlap(
+                full_roi,
+                col("artifacts_mask_path"),
+                col("tile_x"),
+                col("tile_y"),
+                col("mpp_x"),
+                col("mpp_y"),
+            ),  # pyright: ignore[reportCallIssue]
+            **HI_CPU,
+            **HI_MEM,
+        )
+        .map(extract_coverages, fn_args=("blur", "artifacts"), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
         .map(select, **LO_CPU, **LO_MEM)
     )
 
     return slides.to_pandas(), tiles.to_pandas()
 
 
-@with_cli_args([])
-@hydra.main(config_path="conf", config_name="default", version_base=None)
+@with_cli_args(["+preprocessing=tiling"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    # qc_folder = Path(
-    #     mlflow.artifacts.download_artifacts(config.dataset.mlflow_uris.qc_mask)
-    # )
-    # tissue_folder = Path(
-    #     mlflow.artifacts.download_artifacts(config.dataset.mlflow_uris.tissue_mask)
-    # )
-    qc_folder = Path(
-        "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/qc"
-    )
-    tissue_folder = Path(
-        "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/tissue_masks"
-    )
-    annot_folder = Path(
-        "/mnt/projects/epithelium_segmentation/breast/TNBC/tif/dysplasia/preprocessing/annotation_masks"
-    )
 
     # for name, split_uri in config.dataset.mlflow_uris.splits.items():
     # split = pd.read_csv(
     #     mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
     # )
 
-    csv_input_path = Path(config.dataset.local_path)
-    dataset = pd.read_csv(csv_input_path, index_col="slide_id")
-    dataset = dataset.loc[["9965_20_HE_0"]]
+    qc_folder = Path(download_artifacts(config.qc_mlflow_uri))
+    tissue_folder = Path(download_artifacts(config.tissue_mlflow_uri))
+    annot_folder = Path(download_artifacts(config.annot_mlflow_uri))
+    dataset_path = Path(download_artifacts(config.dataset_uri))
+
+    dataset = pd.read_csv(dataset_path, index_col="slide_id")
 
     df_slides, df_tiles = tiling(
         dataset,
         qc_folder=qc_folder,
         tissue_folder=tissue_folder,
         annot_folder=annot_folder,
-        tile_extent=config.tiling.tile_extent,
-        stride=config.tiling.stride,
-        mpp=config.tiling.mpp,
-        tissue_threshold=config.tiling.tissue_threshold,
-        target_groups=config.annotation_mask.target_groups,
+        tile_extent=config.tile_extent,
+        stride=config.stride,
+        mpp=config.mpp,
+        tissue_threshold=config.tissue_threshold,
+        target_groups=config.target_groups,
     )
     # save_mlflow_dataset(
     #     df_slides, df_tiles, "tiling"
     # )
 
-    output_dir = Path(config.tiling.output_dir)
-    csv_path = output_dir / "slides.csv"
-    df_slides.to_csv(csv_path, index=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        df_slides.to_parquet(f"{tmpdir}/slides.parquet", index=False)
+        df_tiles.to_parquet(f"{tmpdir}/tiles.parquet", index=False)
 
-    csv_path = output_dir / "tiles.csv"
-    df_tiles.to_csv(csv_path, index=True)
+        mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":

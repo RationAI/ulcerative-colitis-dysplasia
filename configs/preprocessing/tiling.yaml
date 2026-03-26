@@ -1,13 +1,17 @@
 # @package _global_
 
+qc_mlflow_uri: mlflow-artifacts:/111/50b6a6ee9a5d4ab7b61eefcf03fadbe1/artifacts/qc_output
+tissue_mlflow_uri: mlflow-artifacts:/111/689556011e004b4ab772dd369845449c/artifacts/tissue_masks
+annot_mlflow_uri: mlflow-artifacts:/111/4e2936ae8c1a499eb8620d208bed48de/artifacts/annot_masks
+mpp: 1.55
+tile_extent: 224
+stride: 112
+tissue_threshold: 0.5
 mlflow_artifact_path: tiling
-tile_size: ???
-stride: ???
+target_groups:
+  "LG Dysplasia": 255
+  "HG Dysplasia": 128
 
 metadata:
-  run_name: Tiling ${dataset.name}
-  description: ???
-  hyperparams:
-    tile_size: ${tile_size}
-    stride: ${stride}
-
+  run_name: "🧩 Tiling"
+  description: "Create tiles for dysplasia project"
