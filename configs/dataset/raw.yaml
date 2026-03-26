@@ -1,0 +1,6 @@
+# @package _global_
+
+dataset_uri: mlflow-artifacts:/111/429d7b8114c24a91885bd3fc5ddc5639/artifacts/dataset.csv
+annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
+selected_cases_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
+regex_pattern: '^\d+_\d+_HE_[0-9A-Z]\.(czi|json)$'

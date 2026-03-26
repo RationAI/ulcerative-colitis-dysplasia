@@ -148,6 +148,7 @@ def tiling(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
     paths = df["slide_path"].tolist()
+    paths = [df.loc["4488_22_HE_0", "slide_path"]]
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
@@ -238,7 +239,7 @@ def tiling(
     return slides.to_pandas(), tiles.to_pandas()
 
 
-@with_cli_args(["+preprocessing=tiling"])
+@with_cli_args(["+preprocessing=tiling", "+dataset=raw"])
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
