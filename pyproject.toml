@@ -24,10 +24,10 @@ dependencies = [
 job = ["rationai-kube-jobs"]
 
 [tool.uv.sources]
-rationai-sdk = { git = "https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" }
 rationai-kube-jobs = { git = "ssh://git@gitlab.ics.muni.cz/rationai/infrastructure/kube-jobs" }
+rationai-sdk = { git = "https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" }
 rationai-mlkit = { git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/libraries/mlkit.git" }
-ratiopath = { git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/libraries/ratiopath.git" }
+ratiopath = { git = "https://github.com/RationAI/ratiopath.git" }
 
 [dependency-groups]
 dev = ["mypy", "ruff"]
