@@ -1556,12 +1556,15 @@ name = "project-name"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "hydra-core" },
     { name = "lightning" },
     { name = "mlflow" },
+    { name = "pandas" },
     { name = "rationai-mlkit" },
     { name = "rationai-sdk" },
     { name = "torch" },
     { name = "torchmetrics" },
+    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -1577,13 +1580,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "hydra-core" },
     { name = "lightning", specifier = ">=2.4.0" },
     { name = "mlflow", specifier = "<3.0" },
+    { name = "pandas" },
     { name = "rationai-kube-jobs", marker = "extra == 'job'", git = "ssh://git@gitlab.ics.muni.cz/rationai/infrastructure/kube-jobs" },
     { name = "rationai-mlkit", git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/libraries/mlkit.git" },
     { name = "rationai-sdk", git = "https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" },
     { name = "torch", specifier = ">=2.9.0" },
     { name = "torchmetrics", specifier = ">=1.4.1" },
+    { name = "tqdm" },
 ]
 provides-extras = ["job"]
 
