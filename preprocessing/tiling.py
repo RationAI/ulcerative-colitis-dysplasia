@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 from typing import Any, TypedDict, cast
@@ -11,11 +12,12 @@ from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from ratiopath.ray import read_slides
-from ratiopath.tiling import grid_tiles, tile_overlay_overlap
+from ratiopath.tiling import grid_tiles, tile_annotations, tile_overlay_overlap
 from ratiopath.tiling.utils import row_hash
 from ray.data.expressions import col
 from shapely import Polygon
 from shapely.geometry import box
+from shapely.geometry.base import BaseGeometry
 
 
 QC_BLUR_MEAN_COLUMN = "mean_coverage(Piqe)"
@@ -56,7 +58,6 @@ def add_mask_paths(
 ) -> dict[str, Any]:
     stem = Path(row["path"]).stem
     row["tissue_mask_path"] = str(tissue_folder / f"{stem}.tiff")
-    row["annotation_mask_path"] = str(annot_folder / f"{stem}.tiff")
     for key, subfolder in QC_SUBFOLDERS.items():
         row[f"{key}_mask_path"] = str(qc_folder / subfolder / f"{stem}.tiff")
 
@@ -73,11 +74,39 @@ def create_full_roi(tile_extent: int) -> Polygon:
     return box(0, 0, tile_extent, tile_extent)
 
 
-def tile(row: dict[str, Any]) -> list[dict[str, Any]]:
+def tile(row: dict[str, Any], full_roi: BaseGeometry) -> list[dict[str, Any]]:
+    coords_gen = grid_tiles(
+        slide_extent=(row["extent_x"], row["extent_y"]),
+        tile_extent=(row["tile_extent_x"], row["tile_extent_y"]),
+        stride=(row["stride_x"], row["stride_y"]),
+    )
+
+    coords_list = list(coords_gen)
+    downsample = row["downsample"]
+    tile_area = full_roi.area
+
+    lg_geoms = [
+        geom
+        for geom, label in zip(
+            row["annotation_geoms"], row["annotation_labels"], strict=True
+        )
+        if label == "LG Dysplasia"
+    ]
+    hg_geoms = [
+        geom
+        for geom, label in zip(
+            row["annotation_geoms"], row["annotation_labels"], strict=True
+        )
+        if label == "HG Dysplasia" or label == "Loose HG Dysplasia"
+    ]
+
+    lg_gen = tile_annotations(lg_geoms, full_roi, coords_list, downsample)
+    hg_gen = tile_annotations(hg_geoms, full_roi, coords_list, downsample)
+
     return [
         {
-            "tile_x": x,
-            "tile_y": y,
+            "tile_x": coord[0],
+            "tile_y": coord[1],
             "path": row["path"],
             "slide_id": row["id"],
             "level": row["level"],
@@ -86,31 +115,54 @@ def tile(row: dict[str, Any]) -> list[dict[str, Any]]:
             "mpp_x": row["mpp_x"],
             "mpp_y": row["mpp_y"],
             "tissue_mask_path": row["tissue_mask_path"],
-            "annotation_mask_path": row["annotation_mask_path"],
             "blur_mask_path": row["blur_mask_path"],
             "artifacts_mask_path": row["artifacts_mask_path"],
+            "LG Dysplasia": lg_p.area / tile_area,
+            "HG Dysplasia": hg_p.area / tile_area,
+            "annotation": (lg_p.area + hg_p.area) / tile_area,
         }
-        for x, y in grid_tiles(
-            slide_extent=(row["extent_x"], row["extent_y"]),
-            tile_extent=(row["tile_extent_x"], row["tile_extent_y"]),
-            stride=(row["stride_x"], row["stride_y"]),
-        )
+        for coord, lg_p, hg_p in zip(coords_list, lg_gen, hg_gen, strict=True)
     ]
 
 
-def extract_coverages(
-    row: dict[str, Any], *cols: str, target_groups: dict[str, int] | None = None
-) -> dict[str, Any]:
+def extract_coverages(row: dict[str, Any], *cols: str) -> dict[str, Any]:
     for c in cols:
-        overlap = row.get(f"{c}_overlap", {})
-
+        overlap = row[f"{c}_overlap"]
         zero_overlap = overlap.get("0", 0)
-        row[c] = 1.0 - (zero_overlap if zero_overlap is not None else 0.0)
+        if zero_overlap is None:
+            row[c] = 1.0
+        else:
+            row[c] = 1.0 - zero_overlap
 
-        if target_groups:
-            for label, pixel_val in target_groups.items():
-                val = overlap.get(str(pixel_val), 0.0)
-                row[label] = float(val if val is not None else 0.0)
+    return row
+
+
+def load_slide_annotations(row: dict, annot_folder: Path) -> dict:
+    slide_path = Path(row["path"])
+    slide_name = slide_path.stem
+    annot_path = annot_folder / f"{slide_name}.json"
+
+    with open(annot_path) as f:
+        data = json.load(f)
+
+    geoms = []
+    labels = []
+
+    for item in data.get("items", []):
+        coords = item.get("coordinates")
+
+        if coords and len(coords) >= 3:
+            poly = Polygon(coords)
+
+            if not poly.is_valid:
+                poly = poly.buffer(0)
+
+            geoms.append(poly)
+            labels.append(item.get("name", "Unknown"))
+
+    if geoms:
+        row["annotation_geoms"] = geoms
+        row["annotation_labels"] = labels
 
     return row
 
@@ -148,14 +200,15 @@ def tiling(
     paths = df["slide_path"].tolist()
     paths = [df.loc["4488_22_HE_0", "slide_path"]]
 
+    tissue_roi = create_tissue_roi(tile_extent)
+    full_roi = create_full_roi(tile_extent)
+
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash, **LO_CPU, **LO_MEM)
         .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        .map(load_slide_annotations, fn_args=(annot_folder,), **LO_CPU, **HI_MEM)
     )
-
-    tissue_roi = create_tissue_roi(tile_extent)
-    full_roi = create_full_roi(tile_extent)
 
     tiles = (
         slides.map(
@@ -164,7 +217,7 @@ def tiling(
             **LO_CPU,
             **LO_MEM,
         )
-        .flat_map(tile, **HI_CPU, **LO_MEM)
+        .flat_map(tile, fn_args=(full_roi,), **HI_CPU, **LO_MEM)
         .repartition(target_num_rows_per_block=4096)
         .with_column(
             "tissue_overlap",
@@ -179,27 +232,7 @@ def tiling(
             **HI_CPU,
             **HI_MEM,
         )
-        .with_column(
-            "annotation_overlap",
-            tile_overlay_overlap(
-                full_roi,
-                col("annotation_mask_path"),
-                col("tile_x"),
-                col("tile_y"),
-                col("mpp_x"),
-                col("mpp_y"),
-            ),  # pyright: ignore[reportCallIssue]
-            **HI_CPU,
-            **HI_MEM,
-        )
         .map(extract_coverages, fn_args=("tissue",), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-        .map(
-            extract_coverages,
-            fn_args=("annotation",),
-            fn_kwargs={"target_groups": target_groups},
-            **LO_CPU,
-            **LO_MEM,
-        )  # pyright: ignore[reportArgumentType]
         .filter(filter_tissue, fn_args=(tissue_threshold,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
         .with_column(
             "blur_overlap",
@@ -231,18 +264,25 @@ def tiling(
         .map(select, **LO_CPU, **LO_MEM)
     )
 
+    slides = slides.drop_columns(["annotation_geoms", "annotation_labels"])
+
     return slides.to_pandas(), tiles.to_pandas()
 
 
-@with_cli_args(["+preprocessing=tiling", "+dataset=raw"])
+@with_cli_args(
+    [
+        "+preprocessing=tiling",
+        "+dataset=raw",
+        "+experiment/preprocessing/tiling=level1_extent224",
+    ]
+)
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-
     qc_folder = Path(download_artifacts(config.qc_mlflow_uri))
     tissue_folder = Path(download_artifacts(config.tissue_mlflow_uri))
-    annot_folder = Path(download_artifacts(config.annot_mlflow_uri))
     dataset_path = Path(download_artifacts(config.dataset_uri))
+    annot_folder = Path(config.annot_path)
 
     dataset = pd.read_csv(dataset_path, index_col="slide_id")
 

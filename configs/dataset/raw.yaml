@@ -4,3 +4,7 @@ dataset_uri: mlflow-artifacts:/111/429d7b8114c24a91885bd3fc5ddc5639/artifacts/da
 annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
 selected_cases_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
 regex_pattern: '^\d+_\d+_HE_[0-9A-Z]\.(czi|json)$'
+
+qc_mlflow_uri: mlflow-artifacts:/111/50b6a6ee9a5d4ab7b61eefcf03fadbe1/artifacts/qc_output
+tissue_mlflow_uri: mlflow-artifacts:/111/689556011e004b4ab772dd369845449c/artifacts/tissue_masks
+annot_mlflow_uri: mlflow-artifacts:/111/4e2936ae8c1a499eb8620d208bed48de/artifacts/annot_masks
