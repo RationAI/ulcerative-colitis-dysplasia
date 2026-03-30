@@ -1,0 +1,13 @@
+# @package _global_
+
+splits:
+  train: ???
+  test_preliminary: ???
+  test_final: ???
+
+n_folds: 5
+random_state: 42
+
+metadata:
+  run_name: "✂️ Dataset splitting"
+  description: Dataset splitting for dypslasia project.
