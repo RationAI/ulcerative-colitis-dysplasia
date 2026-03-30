@@ -56,17 +56,11 @@ def add_folds(train: pd.DataFrame, n_folds: int, random_state: int) -> pd.DataFr
     return train
 
 
-@with_cli_args(
-    [
-        "+preprocessing=split_dataset",
-        "+dataset=raw",
-        "+experiment/preprocessing/split_dataset=raw",
-    ]
-)
+@with_cli_args(["+preprocessing=split_dataset"])
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset = pd.read_csv(download_artifacts(config.dataset_uri))
+    dataset = pd.read_csv(download_artifacts(config.mlflow_uris.dataset_uri))
 
     train, test_preliminary, test_final = split_dataset(
         dataset, config.splits, config.random_state
