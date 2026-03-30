@@ -200,15 +200,18 @@ def tiling(
     paths = df["slide_path"].tolist()
     paths = [df.loc["4488_22_HE_0", "slide_path"]]
 
-    tissue_roi = create_tissue_roi(tile_extent)
-    full_roi = create_full_roi(tile_extent)
-
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash, **LO_CPU, **LO_MEM)
         .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
         .map(load_slide_annotations, fn_args=(annot_folder,), **LO_CPU, **HI_MEM)
     )
+
+    if "fold" in df.columns:
+        slides = slides.map(add_fold, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+
+    tissue_roi = create_tissue_roi(tile_extent)
+    full_roi = create_full_roi(tile_extent)
 
     tiles = (
         slides.map(
@@ -279,30 +282,35 @@ def tiling(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    qc_folder = Path(download_artifacts(config.qc_mlflow_uri))
-    tissue_folder = Path(download_artifacts(config.tissue_mlflow_uri))
-    dataset_path = Path(download_artifacts(config.dataset_uri))
+    qc_folder = Path(download_artifacts(config.mlflow_uris.qc_uri))
+    tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue_uri))
     annot_folder = Path(config.annot_path)
 
-    dataset = pd.read_csv(dataset_path, index_col="slide_id")
+    for name, split_uri in config.mlflow_uris.splits.items():
+        split = pd.read_csv(
+            mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
+        )
 
-    df_slides, df_tiles = tiling(
-        dataset,
-        qc_folder=qc_folder,
-        tissue_folder=tissue_folder,
-        annot_folder=annot_folder,
-        tile_extent=config.tile_extent,
-        stride=config.stride,
-        mpp=config.mpp,
-        tissue_threshold=config.tissue_threshold,
-        target_groups=config.target_groups,
-    )
+        df_slides, df_tiles = tiling(
+            split,
+            qc_folder=qc_folder,
+            tissue_folder=tissue_folder,
+            annot_folder=annot_folder,
+            tile_extent=config.tile_extent,
+            stride=config.stride,
+            mpp=config.mpp,
+            tissue_threshold=config.tissue_threshold,
+            target_groups=config.target_groups,
+        )
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        df_slides.to_parquet(f"{tmpdir}/slides.parquet", index=False)
-        df_tiles.to_parquet(f"{tmpdir}/tiles.parquet", index=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_dir = Path(tmpdir) / name
+            save_dir.mkdir(parents=True, exist_ok=True)
+            df_slides.to_parquet(save_dir / "slides.parquet", index=False)
+            df_tiles.to_parquet(save_dir / "tiles.parquet", index=False)
 
-        mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
+            mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
+        break
 
 
 if __name__ == "__main__":
