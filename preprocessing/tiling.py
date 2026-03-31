@@ -137,7 +137,7 @@ def extract_coverages(row: dict[str, Any], *cols: str) -> dict[str, Any]:
     return row
 
 
-def load_slide_annotations(row: dict[str, Any], annot_folder: Path) -> dict:
+def load_slide_annotations(row: dict[str, Any], annot_folder: Path) -> dict[str, Any]:
     slide_path = Path(row["path"])
     slide_name = slide_path.stem
     annot_path = annot_folder / f"{slide_name}.json"
