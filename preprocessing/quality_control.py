@@ -7,7 +7,7 @@ import hydra
 import pandas as pd
 from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
-from rationai import AsyncClient
+from rationai.client import AsyncClient
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from rationai.types import SlideCheckConfig
@@ -83,7 +83,7 @@ async def qc_main(
             f.unlink()
 
 
-@with_cli_args(["+preprocessing=qc"])
+@with_cli_args(["+preprocessing=qc", "+dataset=raw"])
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
