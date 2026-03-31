@@ -44,7 +44,6 @@ def get_df(
 def create_dataset(
     slides_path: str, annot_path: str, selected_slides_path: str, pattern_str: str
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
-
     slides_df = get_df(
         Path(slides_path), re.compile(pattern_str), {"key": "slide", "ext": "*.czi"}
     )
@@ -72,7 +71,6 @@ def create_dataset(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-
     dataset, missing_slides, missing_labels = create_dataset(
         config.data_path,
         config.annot_path,
