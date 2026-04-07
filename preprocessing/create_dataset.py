@@ -17,10 +17,10 @@ def extract_case_id(stem: str) -> str:
 
 
 def get_df(
-    folder_path: Path, pattern: re.Pattern[str], conf: dict[str, str]
+    folder_path: Path, pattern: re.Pattern[str], key: str, ext: str
 ) -> pd.DataFrame:
     data = []
-    for slide_path in folder_path.glob(conf["ext"]):
+    for slide_path in folder_path.glob(ext):
         if not pattern.search(slide_path.name):
             continue
 
@@ -29,27 +29,26 @@ def get_df(
             {
                 "slide_id": slide_path.stem,
                 "case_id": case_id,
-                f"{conf['key']}_path": str(slide_path.absolute()),
+                f"{key}_path": str(slide_path.absolute()),
             }
         )
 
     df = pd.DataFrame(data)
     if df.empty:
-        return pd.DataFrame(
-            columns=["slide_id", "case_id", f"{conf['key']}_path"]
-        ).set_index("slide_id")
+        return pd.DataFrame(columns=["slide_id", "case_id", f"{key}_path"]).set_index(
+            "slide_id"
+        )
     return df.set_index("slide_id")
 
 
 def create_dataset(
     slides_path: str, annot_path: str, selected_slides_path: str, pattern_str: str
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
-
     slides_df = get_df(
-        Path(slides_path), re.compile(pattern_str), {"key": "slide", "ext": "*.czi"}
+        Path(slides_path), re.compile(pattern_str), key="slide", ext="*.czi"
     )
     annot_df = get_df(
-        Path(annot_path), re.compile(pattern_str), {"key": "annot", "ext": "*.json"}
+        Path(annot_path), re.compile(pattern_str), key="annot", ext="*.json"
     )
 
     selected_cases = pd.read_excel(selected_slides_path, skiprows=[0, 1], header=None)
@@ -72,7 +71,6 @@ def create_dataset(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-
     dataset, missing_slides, missing_labels = create_dataset(
         config.data_path,
         config.annot_path,
@@ -88,8 +86,6 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         logger.log_artifact(str(output_path))
 
         def _log_missing_items(items: list[str], filename: str) -> None:
-            if not items:
-                return
             file_path = tmpdir_path / filename
             file_path.write_text("\n".join(items) + "\n")
             logger.log_artifact(str(file_path))
