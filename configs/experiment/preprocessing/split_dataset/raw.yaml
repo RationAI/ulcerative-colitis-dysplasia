@@ -1,9 +1,0 @@
-# @package _global_
-
-defaults:
-  - _self_
-
-splits:
-  train: 0.7
-  test_preliminary: 0.15
-  test_final: 0.15
