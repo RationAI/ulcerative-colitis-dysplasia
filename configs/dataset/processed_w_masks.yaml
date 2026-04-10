@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - /dataset/processed@_here_
+  - _self_
+
+mlflow_uris:
+  qc: mlflow-artifacts:/111/8869b89209634f2da4c9b18b0cdfeb91/artifacts/qc_output
+  tissue: mlflow-artifacts:/111/689556011e004b4ab772dd369845449c/artifacts/tissue_masks
+  splits:
+      train: mlflow-artifacts:/111/d89ab4e83aea4c47a7dc7eb1df097218/artifacts/train.csv
+      test_preliminary: mlflow-artifacts:/111/d89ab4e83aea4c47a7dc7eb1df097218/artifacts/test_preliminary.csv
+      test_final: mlflow-artifacts:/111/d89ab4e83aea4c47a7dc7eb1df097218/artifacts/test_final.csv

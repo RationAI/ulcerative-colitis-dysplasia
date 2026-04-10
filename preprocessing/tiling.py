@@ -1,4 +1,4 @@
-import json
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, TypedDict, cast
@@ -11,6 +11,7 @@ from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
+from ratiopath.parsers.empaia_parser import EMPAIAParser
 from ratiopath.ray import read_slides
 from ratiopath.tiling import grid_tiles, tile_annotations, tile_overlay_overlap
 from ratiopath.tiling.utils import row_hash
@@ -74,7 +75,12 @@ def create_full_roi(tile_extent: int) -> Polygon:
     return box(0, 0, tile_extent, tile_extent)
 
 
-def tile(row: dict[str, Any], full_roi: BaseGeometry) -> list[dict[str, Any]]:
+def tile(
+    row: dict[str, Any],
+    full_roi: BaseGeometry,
+    annot_folder: Path,
+    target_group_labels: dict[str, list[str]],
+) -> list[dict[str, Any]]:
     coords_gen = grid_tiles(
         slide_extent=(row["extent_x"], row["extent_y"]),
         tile_extent=(row["tile_extent_x"], row["tile_extent_y"]),
@@ -85,43 +91,48 @@ def tile(row: dict[str, Any], full_roi: BaseGeometry) -> list[dict[str, Any]]:
     downsample = row["downsample"]
     tile_area = full_roi.area
 
-    lg_geoms = [
-        geom
-        for geom, label in zip(
-            row["annotation_geoms"], row["annotation_labels"], strict=True
-        )
-        if label == "LG Dysplasia"
-    ]
-    hg_geoms = [
-        geom
-        for geom, label in zip(
-            row["annotation_geoms"], row["annotation_labels"], strict=True
-        )
-        if label == "HG Dysplasia" or label == "Loose HG Dysplasia"
-    ]
+    slide_name = Path(row["path"]).stem
+    annot_path = annot_folder / f"{slide_name}.json"
+    parser = EMPAIAParser(annot_path)
 
-    lg_gen = tile_annotations(lg_geoms, full_roi, coords_list, downsample)
-    hg_gen = tile_annotations(hg_geoms, full_roi, coords_list, downsample)
+    geoms_by_class = {label: [] for label in target_group_labels}
+    for target_label, raw_labels in target_group_labels.items():
+        for raw_label in raw_labels:
+            geoms_by_class[target_label].extend(
+                parser.get_polygons(name=rf"^{re.escape(raw_label)}$")
+            )
+
+    class_generators = [
+        tile_annotations(geoms_by_class[label], full_roi, coords_list, downsample)
+        for label in target_group_labels
+    ]
 
     return [
-        {
-            "tile_x": coord[0],
-            "tile_y": coord[1],
-            "path": row["path"],
-            "slide_id": row["id"],
-            "level": row["level"],
-            "tile_extent_x": row["tile_extent_x"],
-            "tile_extent_y": row["tile_extent_y"],
-            "mpp_x": row["mpp_x"],
-            "mpp_y": row["mpp_y"],
-            "tissue_mask_path": row["tissue_mask_path"],
-            "blur_mask_path": row["blur_mask_path"],
-            "artifacts_mask_path": row["artifacts_mask_path"],
-            "LG Dysplasia": lg_p.area / tile_area,
-            "HG Dysplasia": hg_p.area / tile_area,
-            "annotation": (lg_p.area + hg_p.area) / tile_area,
-        }
-        for coord, lg_p, hg_p in zip(coords_list, lg_gen, hg_gen, strict=True)
+        (
+            {
+                "tile_x": coord[0],
+                "tile_y": coord[1],
+                "path": row["path"],
+                "slide_id": row["id"],
+                "level": row["level"],
+                "tile_extent_x": row["tile_extent_x"],
+                "tile_extent_y": row["tile_extent_y"],
+                "mpp_x": row["mpp_x"],
+                "mpp_y": row["mpp_y"],
+                "tissue_mask_path": row["tissue_mask_path"],
+                "blur_mask_path": row["blur_mask_path"],
+                "artifacts_mask_path": row["artifacts_mask_path"],
+                **{
+                    label: class_poly.area / tile_area
+                    for label, class_poly in zip(
+                        target_group_labels, class_polys, strict=True
+                    )
+                },
+                "annotation": sum(class_poly.area for class_poly in class_polys)
+                / tile_area,
+            }
+        )
+        for coord, *class_polys in zip(coords_list, *class_generators, strict=True)
     ]
 
 
@@ -137,52 +148,25 @@ def extract_coverages(row: dict[str, Any], *cols: str) -> dict[str, Any]:
     return row
 
 
-def load_slide_annotations(row: dict[str, Any], annot_folder: Path) -> dict[str, Any]:
-    slide_path = Path(row["path"])
-    slide_name = slide_path.stem
-    annot_path = annot_folder / f"{slide_name}.json"
-
-    with open(annot_path) as f:
-        data = json.load(f)
-
-    geoms = []
-    labels = []
-
-    for item in data.get("items", []):
-        coords = item.get("coordinates")
-
-        if coords and len(coords) >= 3:
-            poly = Polygon(coords)
-
-            if not poly.is_valid:
-                poly = poly.buffer(0)
-
-            geoms.append(poly)
-            labels.append(item.get("name", "Unknown"))
-
-    if geoms:
-        row["annotation_geoms"] = geoms
-        row["annotation_labels"] = labels
-
-    return row
-
-
 def filter_tissue(row: dict[str, Any], threshold: float) -> bool:
     return row["tissue"] >= threshold
 
 
-def select(row: dict[str, Any]) -> dict[str, Any]:
-    return {
+def select(row: dict[str, Any], target_labels: list[str]) -> dict[str, Any]:
+    selected_row = {
         "slide_id": row["slide_id"],
         "x": row["tile_x"],
         "y": row["tile_y"],
         "tissue": row["tissue"],
         "annotation": row["annotation"],
-        "LG Dysplasia": row["LG Dysplasia"],
-        "HG Dysplasia": row["HG Dysplasia"],
         "blur": row["blur"],
         "artifacts": row["artifacts"],
     }
+
+    for label in target_labels:
+        selected_row[label] = row[label]
+
+    return selected_row
 
 
 def tiling(
@@ -194,16 +178,16 @@ def tiling(
     stride: int,
     mpp: float,
     tissue_threshold: float,
-    target_groups: dict[str, int],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+    target_group_labels: dict[str, list[str]],
+) -> tuple[ray.data.Dataset, ray.data.Dataset]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
     paths = df["slide_path"].tolist()
+    paths = [p for p in paths if Path(p).name == "317_23_HE_0.tiff"]
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash, **LO_CPU, **LO_MEM)
         .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-        .map(load_slide_annotations, fn_args=(annot_folder,), **LO_CPU, **HI_MEM)
     )
 
     if "fold" in df.columns:
@@ -219,7 +203,12 @@ def tiling(
             **LO_CPU,
             **LO_MEM,
         )
-        .flat_map(tile, fn_args=(full_roi,), **HI_CPU, **LO_MEM)
+        .flat_map(
+            tile,
+            fn_args=(full_roi, annot_folder, target_group_labels),
+            **HI_CPU,
+            **LO_MEM,
+        )
         .repartition(target_num_rows_per_block=4096)
         .with_column(
             "tissue_overlap",
@@ -263,28 +252,30 @@ def tiling(
             **HI_MEM,
         )
         .map(extract_coverages, fn_args=("blur", "artifacts"), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-        .map(select, **LO_CPU, **LO_MEM)
+        .map(select, fn_args=(list(target_group_labels),), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
-    slides = slides.drop_columns(["annotation_geoms", "annotation_labels"])
-
-    return slides.to_pandas(), tiles.to_pandas()
+    return slides, tiles
 
 
 @with_cli_args(["+preprocessing=tiling"])
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    qc_folder = Path(download_artifacts(config.mlflow_uris.qc_uri))
-    tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue_uri))
+    qc_folder = Path(download_artifacts(config.mlflow_uris.qc))
+    tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue))
     annot_folder = Path(config.annot_path)
+    target_group_labels = {
+        target_label: list(group_config.labels)
+        for target_label, group_config in config.target_groups.items()
+    }
 
     for name, split_uri in config.mlflow_uris.splits.items():
         split = pd.read_csv(
             mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
         )
 
-        df_slides, df_tiles = tiling(
+        ds_slides, ds_tiles = tiling(
             split,
             qc_folder=qc_folder,
             tissue_folder=tissue_folder,
@@ -293,14 +284,14 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             stride=config.stride,
             mpp=config.mpp,
             tissue_threshold=config.tissue_threshold,
-            target_groups=config.target_groups,
+            target_group_labels=target_group_labels,
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             save_dir = Path(tmpdir) / name
             save_dir.mkdir(parents=True, exist_ok=True)
-            df_slides.to_parquet(save_dir / "slides.parquet", index=False)
-            df_tiles.to_parquet(save_dir / "tiles.parquet", index=False)
+            ds_slides.write_parquet(str(save_dir / "slides"))
+            ds_tiles.write_parquet(str(save_dir / "tiles"))
 
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 
