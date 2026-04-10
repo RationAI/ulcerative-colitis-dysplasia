@@ -95,7 +95,9 @@ def tile(
     annot_path = annot_folder / f"{slide_name}.json"
     parser = EMPAIAParser(annot_path)
 
-    geoms_by_class = {label: [] for label in target_group_labels}
+    geoms_by_class: dict[str, list[Polygon]] = {
+        label: [] for label in target_group_labels
+    }
     for target_label, raw_labels in target_group_labels.items():
         for raw_label in raw_labels:
             geoms_by_class[target_label].extend(
@@ -182,7 +184,6 @@ def tiling(
 ) -> tuple[ray.data.Dataset, ray.data.Dataset]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
     paths = df["slide_path"].tolist()
-    paths = [p for p in paths if Path(p).name == "317_23_HE_0.tiff"]
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
@@ -291,7 +292,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             save_dir = Path(tmpdir) / name
             save_dir.mkdir(parents=True, exist_ok=True)
             ds_slides.write_parquet(str(save_dir / "slides"))
-            ds_tiles.write_parquet(str(save_dir / "tiles"))
+            ds_tiles.write_parquet(str(save_dir / "tiles"), partition_cols=["slide_id"])
 
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 
