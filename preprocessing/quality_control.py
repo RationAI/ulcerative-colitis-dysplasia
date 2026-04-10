@@ -49,11 +49,11 @@ def organize_masks(output_path: Path, subdir: str, mask_prefix: str) -> None:
 async def qc_main(
     output_path: Path,
     slides: list[str],
-    logger: MLFlowLogger,
     request_timeout: int,
     max_concurrent: int,
     qc_parameters: QCParameters,
 ) -> None:
+    slides = [slides[0]]
     async with AsyncClient() as client:
         async for result in tqdm(
             client.qc.check_slides(
@@ -72,24 +72,22 @@ async def qc_main(
                     )
 
         for prefix, artifact_name in get_qc_masks(qc_parameters):
-            organize_masks(Path(output_path), artifact_name, prefix)
+            organize_masks(output_path, artifact_name, prefix)
 
-        csvs = list(Path(output_path).glob("*.csv"))
+        csvs = list(output_path.glob("*.csv"))
         pd.concat([pd.read_csv(f) for f in csvs]).to_csv(
-            Path(output_path, "qc_metrics.csv"), index=False
+            output_path / "qc_metrics.csv", index=False
         )
 
         for f in csvs:
             f.unlink()
 
 
-@with_cli_args(["+preprocessing=qc", "+dataset=raw"])
+@with_cli_args(["+preprocessing=qc"])
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset = pd.read_csv(
-        download_artifacts(artifact_uri=config.mlflow_uris.dataset_uri)
-    )
+    dataset = pd.read_csv(download_artifacts(artifact_uri=config.mlflow_uris.dataset))
 
     output_path = Path(config.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -98,7 +96,6 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         qc_main(
             output_path=output_path,
             slides=dataset["slide_path"].to_list(),
-            logger=logger,
             request_timeout=config.request_timeout,
             max_concurrent=config.max_concurrent,
             qc_parameters=config.qc_parameters,
