@@ -1,8 +1,0 @@
-# @package _global_
-
-defaults:
-  - /dataset/raw@_here_
-  - _self_
-
-mlflow_uris:
-  dataset: mlflow-artifacts:/111/aa54022e2e1b4b74b67ddd1d7260f8e9/artifacts/dataset.csv
