@@ -53,7 +53,6 @@ async def qc_main(
     max_concurrent: int,
     qc_parameters: QCParameters,
 ) -> None:
-    slides = [slides[0]]
     async with AsyncClient() as client:
         async for result in tqdm(
             client.qc.check_slides(
