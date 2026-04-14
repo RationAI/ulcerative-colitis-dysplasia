@@ -6,13 +6,8 @@ stride: ???
 tissue_threshold: 0.5
 mlflow_artifact_path: tiling
 target_groups:
-  "LG Dysplasia":
-    labels:
-      - "LG Dysplasia"
-  "HG Dysplasia":
-    labels:
-      - "HG Dysplasia"
-      - "Loose HG Dysplasia"
+  - "LG Dysplasia"
+  - "HG Dysplasia"
 
 metadata:
   run_name: "🧩 Tiling"

@@ -54,8 +54,15 @@ def add_fold(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
     return row
 
 
+def add_clarity(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
+    row["clarity"] = df.loc[Path(row["path"]).stem, "clarity"]
+    return row
+
+
 def add_mask_paths(
-    row: dict[str, Any], qc_folder: Path, tissue_folder: Path, annot_folder: Path
+    row: dict[str, Any],
+    qc_folder: Path,
+    tissue_folder: Path,
 ) -> dict[str, Any]:
     stem = Path(row["path"]).stem
     row["tissue_mask_path"] = str(tissue_folder / f"{stem}.tiff")
@@ -79,7 +86,7 @@ def tile(
     row: dict[str, Any],
     full_roi: BaseGeometry,
     annot_folder: Path,
-    target_group_labels: dict[str, list[str]],
+    target_groups: list[str],
 ) -> list[dict[str, Any]]:
     coords_gen = grid_tiles(
         slide_extent=(row["extent_x"], row["extent_y"]),
@@ -95,19 +102,19 @@ def tile(
     annot_path = annot_folder / f"{slide_name}.json"
     parser = EMPAIAParser(annot_path)
 
-    geoms_by_class: dict[str, list[Polygon]] = {
-        label: [] for label in target_group_labels
-    }
-    for target_label, raw_labels in target_group_labels.items():
-        for raw_label in raw_labels:
-            geoms_by_class[target_label].extend(
-                parser.get_polygons(name=rf"^{re.escape(raw_label)}$")
+    class_generators = []
+    for label in target_groups:
+        polygons = [
+            p
+            for p in parser.get_polygons(name=rf"^{re.escape(label)}$")
+            if not p.is_empty and p.area > 0
+        ]
+        if not polygons:
+            class_generators.append(Polygon() for _ in coords_list)
+        else:
+            class_generators.append(
+                tile_annotations(polygons, full_roi, coords_list, downsample)
             )
-
-    class_generators = [
-        tile_annotations(geoms_by_class[label], full_roi, coords_list, downsample)
-        for label in target_group_labels
-    ]
 
     return [
         (
@@ -121,13 +128,15 @@ def tile(
                 "tile_extent_y": row["tile_extent_y"],
                 "mpp_x": row["mpp_x"],
                 "mpp_y": row["mpp_y"],
+                "clarity": row.get("clarity"),
+                "fold": row.get("fold"),
                 "tissue_mask_path": row["tissue_mask_path"],
                 "blur_mask_path": row["blur_mask_path"],
                 "artifacts_mask_path": row["artifacts_mask_path"],
                 **{
                     label: class_poly.area / tile_area
                     for label, class_poly in zip(
-                        target_group_labels, class_polys, strict=True
+                        target_groups, class_polys, strict=True
                     )
                 },
                 "annotation": sum(class_poly.area for class_poly in class_polys)
@@ -163,6 +172,8 @@ def select(row: dict[str, Any], target_labels: list[str]) -> dict[str, Any]:
         "annotation": row["annotation"],
         "blur": row["blur"],
         "artifacts": row["artifacts"],
+        "clarity": row.get("clarity"),
+        "fold": row.get("fold"),
     }
 
     for label in target_labels:
@@ -180,9 +191,10 @@ def tiling(
     stride: int,
     mpp: float,
     tissue_threshold: float,
-    target_group_labels: dict[str, list[str]],
+    target_groups: list[str],
 ) -> tuple[ray.data.Dataset, ray.data.Dataset]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
+
     paths = df["slide_path"].tolist()
 
     slides = (
@@ -194,19 +206,22 @@ def tiling(
     if "fold" in df.columns:
         slides = slides.map(add_fold, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
 
+    if "clarity" in df.columns:
+        slides = slides.map(add_clarity, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+
     tissue_roi = create_tissue_roi(tile_extent)
     full_roi = create_full_roi(tile_extent)
 
     tiles = (
         slides.map(
             add_mask_paths,  # pyright: ignore[reportArgumentType]
-            fn_args=(qc_folder, tissue_folder, annot_folder),
+            fn_args=(qc_folder, tissue_folder),
             **LO_CPU,
             **LO_MEM,
         )
         .flat_map(
             tile,
-            fn_args=(full_roi, annot_folder, target_group_labels),
+            fn_args=(full_roi, annot_folder, target_groups),
             **HI_CPU,
             **LO_MEM,
         )
@@ -253,7 +268,7 @@ def tiling(
             **HI_MEM,
         )
         .map(extract_coverages, fn_args=("blur", "artifacts"), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
-        .map(select, fn_args=(list(target_group_labels),), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        .map(select, fn_args=(target_groups,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
     return slides, tiles
@@ -266,10 +281,6 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     qc_folder = Path(download_artifacts(config.mlflow_uris.qc))
     tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue))
     annot_folder = Path(config.annot_path)
-    target_group_labels = {
-        target_label: list(group_config.labels)
-        for target_label, group_config in config.target_groups.items()
-    }
 
     for name, split_uri in config.mlflow_uris.splits.items():
         split = pd.read_csv(
@@ -285,7 +296,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             stride=config.stride,
             mpp=config.mpp,
             tissue_threshold=config.tissue_threshold,
-            target_group_labels=target_group_labels,
+            target_groups=list(config.target_groups),
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
