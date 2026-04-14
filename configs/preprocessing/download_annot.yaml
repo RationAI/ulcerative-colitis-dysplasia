@@ -1,0 +1,15 @@
+# @package _global_
+
+client_id: "af1cc4f6-b1a0-4e1f-bdec-361e226b9769"
+client_secret: ""
+token_url: "https://login.aai.lifescience-ri.eu/oidc/token"
+authentication_url: "https://login.aai.lifescience-ri.eu/oidc/devicecode"
+auth_scopes: "openid profile offline_access eduperson_unique_id eduperson_entitlement"
+workbench_base_url: "https://histopat.rationai.cloud.trusted.e-infra.cz/api/wb/v3"
+out_path: "/mnt/projects/inflammatory_bowel_disease/ulcerative_colitis_dysplasia/annot_stash"
+app_id: "4e485b74-413e-477d-8e09-2c38ae57e582"
+url_to_check: "https://histopat.rationai.cloud.trusted.e-infra.cz/authorized/cases/selection?s=zEEHDckWQReQ9BPFepkQ1Q%3Bc5E4jjUXQXOvw78YP0ELdw%3BquXiaeh6Raei7tmRY2cv1A%3BtF0dx_exSXO8aJqleD_zQQ%3BODXhHoGPTgWFwDFSzZUPmg%3BvQCyU7_qSBet883_NdiWWA%3BnImEi3XuSRG0_xVKlyPgnw%3ByXBS-fN5RmWeTyehdTb0yQ%3BK-DFzsYJTYy8iE5MESBz5Q%3BYWt8BAq4SkKgDtOTIxlubw%3B9rF-v4FBRjqniMebSfXYFQ%3BGFVcMhmtSNm3Bf7TICthSQ%3Bps7ir74kQZWcMy0hRAYnZA%3B0-uh0sedS9eKGKCDuyHjmQ%3B-lYB4vyLTgamSBChjrF2cA%3B6byulta_TFelHclaf83Ftg%3BYtUh7QKUREShxC71zVvFJw%3Bf8GnswFaRUOs-jNi3CKPkA%3BCatNV22TQGeJJSqHPyZ8XQ%3B4c8t5oDJRbWfkIJV72Zy7A%3Bzcj9gKyrSCmUO2fVSF4u4w%3BpZCkCochQmGgD-9BgLzH-w%3BQlklXf9rRXuDuz-QYUVAkg%3BUV89qZDzQViXxcLc_1-N9Q%3Baukb-R5_R_eSzzkApWp11g%3BYVp9ruZqSFubngjCi564VA%3BL1VqwsjjQ4G7QyFTfQXDVA%3Bq-0FoDRpRFOTNYuiYIMg3g%3BI1gto9R6QV6ciASp8yDATQ%3B72IOsH7HRXK6ZO3QeOks8Q%3BSz-WQyWGRzy5Znog6I_l0g%3B9QYUcHapSQOJIq3q1l5Wfg%3B5d1YtUkbS0mNMPgTeYXQ5Q%3BfwmcI2kcTFGR3kfsm5eJbQ%3BfWIF26TVSV6MtU4yRzrNHg%3B94OIvVrWTMKXaMA3O415Vg%3B3HdKwqDAQamZvhKuSyJbjg%3BHD6bxguVSbiCOoTGCgXl7A%3BJd3zWyw3RwKLJ1IduOW7Lw%3BEr-iZTT0QzOnsdlx4mUG4w%3BvVBK5UsJTPibE4svQpixdA%3BqzyRPJL5QRWXivExHMYCVw%3Bh3HsvKCuS9ms8jGIePBecg%3Bxpn3Pw7xQIqifGd9dVHxlA%3BMfZ2bXZjSJmv1_-FR3IRrA%3Bz3kWxfUqStiqMauEUNfh4A%3BGYv5x-aJTMuvpsNHjmN6jw%3B5wK7NnxyTJGbe5u84PxQGQ%3B2792QtdFQlq3U4blDtrFvA%3BVVwxYp2SS3aCXhXA7KO5Dw%3BsPnCGymCQny3WHKElJx5SQ%3B0wHa8rIvQL6VKMqr_VDU0A%3BVS6yppDJQ2eOsLjaMcUbew%3BriWO-7XFSsmEh4HHBQhYSw%3BKi_TszKeSyeQjdMSwApJrA%3Bew4CzZJURt6ldssHulpigg%3BghdEbqCGSo2OTQXjdgeQRw%3Baqt-v1CRTCisOpXTcGC0Xg%3BwV13MuAfSpq_2dVIROftyA%3B7Zl3Ss_OQgKP_Zzz0CKqWg%3BgBago5YQQQybmWAHK8oKeQ%3Bd3XbJTH_Syqh28H0DyF2Tw%3B5HzGqNUmTMCiAt8_kYWEGA%3BjKM1Em1JQVqDOdm1Eq4tNQ%3BkKC9lEXSSCmNcFT8YYjoVA%3BaRiZu2X2SFCekm7Vyhy4-A%3By4Ox-uY5Q8yU25BWWUlBCA%3ByOZ1EmQBT7-QHPnFhzOPjA%3Bw0xTyI1-RTqnAhha7KOflw%3BSHj-1nmiQnykuqjM6rTmcw%3B"
+
+metadata:
+  run_name: "Download Annotations"
+  description: "Download polygons from WB v3 for dysplasia slides"

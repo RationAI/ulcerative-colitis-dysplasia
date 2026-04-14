@@ -10,8 +10,10 @@ dependencies = [
     "lightning>=2.4.0",
     "torchmetrics>=1.4.1",
     "mlflow<3.0",
+    "hydra-core",       
     "rationai-sdk>=0.1.0",
     "rationai-empaia",
+    "rationai-mlkit",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +23,8 @@ job = ["rationai-kube-jobs"]
 rationai-sdk = { git = "ssh://git@gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" }
 rationai-kube-jobs = { git = "ssh://git@gitlab.ics.muni.cz/rationai/infrastructure/kube-jobs" }
 rationai-empaia = { git = "ssh://git@gitlab.ics.muni.cz/rationai/digital-pathology/libraries/empaia.git", rev = "feature/workbench-api-clients" }
+rationai-mlkit = { git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/libraries/mlkit.git" }
+
 
 [dependency-groups]
 dev = ["mypy", "ruff"]
