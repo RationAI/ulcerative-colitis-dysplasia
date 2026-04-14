@@ -1,7 +1,9 @@
 import asyncio
 import base64
+import contextlib
 import json
 import os
+import tempfile
 import uuid
 from urllib.parse import unquote
 
@@ -22,7 +24,7 @@ def decompress_hex(compressed: str) -> str:
         compressed += "=" * (4 - padding_needed)
     try:
         return base64.urlsafe_b64decode(compressed).hex()
-    except:
+    except Exception:
         return ""
 
 
@@ -50,7 +52,6 @@ def parse_selection_url(ids_string: str) -> dict:
 async def check_slide_annotations(
     client, case_id, slide_id, out_path, display_name=None
 ):
-    """Downloads polygons and saves them using display_name (short local_id) if provided."""
     try:
         polygons = await client.get_annotation_polygons(
             case_id=case_id, slide_id=slide_id, filter_classes=None, scale_factor=1.0
@@ -64,7 +65,6 @@ async def check_slide_annotations(
 
         if len(items) > 0:
             os.makedirs(out_path, exist_ok=True)
-            # Use short_id if available, otherwise fallback to slide UUID
             file_name = f"{display_name}.json" if display_name else f"{slide_id}.json"
             save_path = os.path.join(out_path, file_name)
 
@@ -96,14 +96,12 @@ async def get_case_slides_metadata(
     return {slide["id"]: slide.get("local_id") for slide in slides}
 
 
-async def run_download_task(config: DictConfig):
+async def run_download_task(config: DictConfig, out_path: str):
     if not ray.is_initialized():
         ray.init(namespace="empaia", ignore_reinit_error=True)
 
-    try:
+    with contextlib.suppress(Exception):
         TokenManager.kill_global_instance()
-    except:
-        pass
 
     auth_config = {
         "client_id": config.client_id,
@@ -117,11 +115,9 @@ async def run_download_task(config: DictConfig):
     TokenManager.init_global_instance(**auth_config)
     client = EmpaiaClientAiohttp(config.workbench_base_url, config.app_id)
 
-    # 1. Parse Selection URL
     data_string = unquote(config.url_to_check.split("?s=")[1])
     parsed = parse_selection_url(data_string)
 
-    # 2. Map all Case and Slide pairs
     to_check = []
 
     all_case_ids = list(set(parsed["urlCases"] + list(parsed["partialCases"].keys())))
@@ -146,19 +142,16 @@ async def run_download_task(config: DictConfig):
             print(f"⚠️ Could not fetch metadata for case {c_id}: {e}")
             return
 
-    # 3. Run Downloads with proper names
     print(f"🚀 Processing {len(to_check)} slides...")
     tasks = [
-        check_slide_annotations(client, c, s, config.out_path, name)
-        for c, s, name in to_check
+        check_slide_annotations(client, c, s, out_path, name) for c, s, name in to_check
     ]
     status_list = await asyncio.gather(*tasks)
 
-    # 4. Final Report
     print("\n" + "=" * 30)
-    print(f"📊 FINAL REPORT")
-    print(f"Total Slides: {len(to_check)}")
-    print(f"Annotated:    {sum(status_list)}")
+    print("📊 FINAL REPORT")
+    print(f"Total extracted Slides: {len(to_check)}")
+    print(f"Slides with Annotations:    {sum(status_list)}")
     print("=" * 30)
 
     await client.close()
@@ -168,7 +161,10 @@ async def run_download_task(config: DictConfig):
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    asyncio.run(run_download_task(config))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        asyncio.run(run_download_task(config, tmpdir))
+
+        logger.experiment.log_artifacts(logger.run_id, tmpdir, "annotations")
 
 
 if __name__ == "__main__":
