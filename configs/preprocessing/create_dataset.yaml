@@ -1,0 +1,5 @@
+# @package _global_
+
+metadata:
+  run_name: "📂 Dataset Creation"
+  description: "Create dataset for dysplasia project"
