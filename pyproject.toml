@@ -9,7 +9,7 @@ dependencies = [
     "torch>=2.9.0",
     "lightning>=2.4.0",
     "torchmetrics>=1.4.1",
-    "mlflow<3.0",
+    "mlflow>=3.10.1",
     "scikit-learn",         
     "pandas",      
     "openpyxl",     
