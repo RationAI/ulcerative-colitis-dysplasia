@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 import uuid
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 import hydra
 import ray
@@ -47,6 +47,43 @@ def parse_selection_url(ids_string: str) -> dict:
                 format_as_uuid(decompress_hex(s) or s) for s in segments[1:]
             ]
     return {"urlCases": url_cases, "partialCases": partial_cases}
+
+
+def parse_selection_urls(urls: list[str]) -> dict:
+    full_cases: set[str] = set()
+    partial_cases: dict[str, set[str]] = {}
+
+    for raw_url in urls:
+        if not raw_url:
+            continue
+
+        query = parse_qs(urlparse(raw_url).query)
+        data_string = query.get("s", [""])[0]
+
+        # Backward compatibility: allow passing only encoded selection payload.
+        if not data_string and ";" in raw_url:
+            data_string = raw_url
+
+        if not data_string:
+            continue
+
+        parsed = parse_selection_url(unquote(data_string))
+
+        for case_id in parsed["urlCases"]:
+            full_cases.add(case_id)
+            partial_cases.pop(case_id, None)
+
+        for case_id, slide_ids in parsed["partialCases"].items():
+            if case_id in full_cases:
+                continue
+            partial_cases.setdefault(case_id, set()).update(slide_ids)
+
+    return {
+        "urlCases": list(full_cases),
+        "partialCases": {
+            case_id: list(slide_ids) for case_id, slide_ids in partial_cases.items()
+        },
+    }
 
 
 async def check_slide_annotations(
@@ -115,8 +152,9 @@ async def run_download_task(config: DictConfig, out_path: str):
     TokenManager.init_global_instance(**auth_config)
     client = EmpaiaClientAiohttp(config.workbench_base_url, config.app_id)
 
-    data_string = unquote(config.url_to_check.split("?s=")[1])
-    parsed = parse_selection_url(data_string)
+    urls = list(config.urls_to_check) if config.urls_to_check else []
+
+    parsed = parse_selection_urls(urls)
 
     to_check = []
 
