@@ -5,4 +5,4 @@ defaults:
   - _self_
 
 mlflow_uris:
-  dataset: mlflow-artifacts:/111/9b6365cbb6fa4826bb3ac82c7d7fb183/artifacts/dataset.csv
+  dataset: mlflow-artifacts:/111/2cb0c5eb7a484b37bc4c52cbc07e3725/artifacts/dataset.csv
