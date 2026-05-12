@@ -89,16 +89,13 @@ def parse_selection_urls(urls: list[str]) -> dict:
 async def check_slide_annotations(
     client, case_id, slide_id, out_path, display_name=None
 ):
+    # client needs to be fixed, returns only polygons instead of the whole json
     try:
-        polygons = await client.get_annotation_polygons(
+        polygons_json = await client.get_annotation_polygons(
             case_id=case_id, slide_id=slide_id, filter_classes=None, scale_factor=1.0
         )
 
-        items = (
-            polygons["items"]
-            if isinstance(polygons, dict) and "items" in polygons
-            else polygons
-        )
+        items = polygons_json.get("items", [])
 
         if len(items) > 0:
             os.makedirs(out_path, exist_ok=True)
@@ -106,11 +103,11 @@ async def check_slide_annotations(
             save_path = os.path.join(out_path, file_name)
 
             with open(save_path, "w") as f:
-                json.dump(items, f, indent=4)
-            print(f"💾 Saved {len(items)} polygons to {file_name}")
+                json.dump(polygons_json, f, indent=4)
+
+            print(f"💾 Saved {len(items)} annotations with metadata to {file_name}")
             return True
-        else:
-            return False
+        return False
     except Exception as e:
         print(f"❌ Error checking {slide_id}: {e}")
         return False
