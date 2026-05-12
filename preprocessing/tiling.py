@@ -1,6 +1,6 @@
 import re
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
 
@@ -80,7 +80,7 @@ def generate_generators(
     coords_list: list[tuple[int, int]],
     downsample: float,
     target_groups: list[str],
-) -> list[Iterable[Polygon]]:
+) -> list[Generator[Any, None, None]]:
     class_generators = []
     parser = EMPAIAParser(annot_path)
     for label in target_groups:
