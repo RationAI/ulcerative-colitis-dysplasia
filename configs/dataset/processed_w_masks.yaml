@@ -5,7 +5,7 @@ defaults:
   - _self_
 
 mlflow_uris:
-  qc: mlflow-artifacts:/111/b04084d8f43144d7985c5b00ee80235e/artifacts/qc_output
+  qc: mlflow-artifacts:/111/10ec53e2cefd4e589e2d76d3373c8286/artifacts/qc_output
   tissue: mlflow-artifacts:/111/97084241311949189445f864d42e9d4e/artifacts/tissue_masks
   splits:
       train: mlflow-artifacts:/111/e8175ecf823d403ca5b629a9bb3cf874/artifacts/train.csv
