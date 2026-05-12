@@ -1,0 +1,28 @@
+defaults:
+  - hydra: default
+  - logger: mlflow
+  - paths
+  - uris
+  - _self_
+
+cohort: ???
+token: ???
+model: ???
+level: ???
+
+tiling_uris: ${uris.tiling.${level}.${cohort}.all}
+
+output_folder: ${paths.embeddings.${level}.${cohort}.${model}}
+
+skip_existing: False
+
+dataloader:
+  batch_size: 2048
+  num_workers: 8
+  persistent_workers: True
+
+metadata:
+  experiment_name: Ulcerative Colitis
+  run_name: '📂 Tile Embeddings: ${cohort} ${model} (level=${level})'
+  description: 'Ulcerative Colitis' 
+  user: AdamK
