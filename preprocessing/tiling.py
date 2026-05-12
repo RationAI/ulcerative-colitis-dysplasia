@@ -1,7 +1,8 @@
 import re
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 
 import hydra
 import mlflow
@@ -40,6 +41,11 @@ def add_fold(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
     return row
 
 
+def add_annot_path(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
+    row["annot_path"] = df.loc[Path(row["path"]).stem, "annot_path"]
+    return row
+
+
 def add_clarity(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
     row["clarity"] = df.loc[Path(row["path"]).stem, "clarity"]
     return row
@@ -68,6 +74,31 @@ def create_full_roi(tile_extent: int) -> Polygon:
     return box(0, 0, tile_extent, tile_extent)
 
 
+def generate_generators(
+    annot_path: Path,
+    full_roi: BaseGeometry,
+    coords_list: list[tuple[int, int]],
+    downsample: float,
+    target_groups: list[str],
+) -> list[Iterable[Polygon]]:
+    class_generators = []
+    parser = EMPAIAParser(annot_path)
+    for label in target_groups:
+        polygons = [
+            p
+            for p in parser.get_polygons(name=rf"^{re.escape(label)}$")
+            if not p.is_empty and p.area > 0
+        ]
+        if not polygons:
+            class_generators.append(Polygon() for _ in coords_list)
+        else:
+            class_generators.append(
+                tile_annotations(polygons, full_roi, coords_list, downsample)
+            )
+
+    return class_generators
+
+
 def tile(
     row: dict[str, Any],
     full_roi: BaseGeometry,
@@ -86,21 +117,15 @@ def tile(
 
     slide_name = Path(row["path"]).stem
     annot_path = annot_folder / f"{slide_name}.json"
-    parser = EMPAIAParser(annot_path)
 
     class_generators = []
-    for label in target_groups:
-        polygons = [
-            p
-            for p in parser.get_polygons(name=rf"^{re.escape(label)}$")
-            if not p.is_empty and p.area > 0
-        ]
-        if not polygons:
+    if row["annot_path"] == "NEGATIVE":
+        for _ in target_groups:
             class_generators.append(Polygon() for _ in coords_list)
-        else:
-            class_generators.append(
-                tile_annotations(polygons, full_roi, coords_list, downsample)
-            )
+    else:
+        class_generators = generate_generators(
+            annot_path, full_roi, coords_list, downsample, target_groups
+        )
 
     return [
         (
@@ -186,6 +211,7 @@ def tiling(
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash)
+        .map(add_annot_path, fn_args=(df,))
         .map(qc_agg, fn_args=(qc_df,))  # pyright: ignore[reportArgumentType]
     )
 
