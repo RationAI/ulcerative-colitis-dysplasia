@@ -1,0 +1,13 @@
+# @package _global_
+
+splits:
+  train: 0.7
+  test_preliminary: 0.15
+  test_final: 0.15
+
+n_folds: 5
+random_state: 42
+
+metadata:
+  run_name: "✂️ Dataset splitting"
+  description: Dataset splitting for dysplasia project.
