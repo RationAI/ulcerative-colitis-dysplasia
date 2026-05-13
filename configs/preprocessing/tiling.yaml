@@ -1,0 +1,14 @@
+# @package _global_
+
+mpp: ???
+tile_extent: ???
+stride: ???
+tissue_threshold: 0.5
+mlflow_artifact_path: tiling
+target_groups:
+  - "LG Dysplasia"
+  - "HG Dysplasia"
+
+metadata:
+  run_name: "🧩 Tiling"
+  description: "Create tiles for dysplasia project"

@@ -1,8 +1,8 @@
 # @package _global_
 
-# defaults:
-#   - /dataset/processed_w_masks@_here_
-#   - _self_
+defaults:
+  - /dataset/processed_w_masks@_here_
+  - _self_
 
 mlflow_uris:
-  tiling: "mlflow-artifacts:/111/518b3b4dd5d4435d90b6ab42a2c8f09e/artifacts/tiling"
+  tiling: "mlflow-artifacts:/111/706564235fb84b25a705cae2dfd55d7c/artifacts/tiling"
