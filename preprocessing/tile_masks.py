@@ -64,41 +64,41 @@ def process_slide(
     )
 
 
-@with_cli_args([])
-@hydra.main(config_path="conf", config_name="default", version_base=None)
+@with_cli_args(["+preprocessing=tile_masks"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    # paths = [mlflow.artifacts.download_artifacts(uri) for uri in config.tile_uris]
-    # slides = pd.read_parquet([Path(path) / "slides.parquet" for path in paths])
-    # tiles = pd.read_parquet([Path(path) / "tiles.parquet" for path in paths])
 
-    slides = pd.read_csv(
-        "/home/jovyan/dysplasia/preprocessing/outputs/tiling/slides.csv"
-    )
-    tiles = pd.read_csv("/home/jovyan/dysplasia/preprocessing/outputs/tiling/tiles.csv")
+    for name, uri in config.mlflow_uris.filtered.items():
+        if name != "test_preliminary":
+            continue
 
-    output_path = Path(config.tile_mask.output_path)
-    output_path.mkdir(exist_ok=True, parents=True)
+        local_path = mlflow.artifacts.download_artifacts(uri)
 
-    # Create subdirs for each tile mask type
-    for percentage_col in [
-        *config.tile_mask.percentage_cols,
-        "outlines",
-    ]:
-        (output_path / percentage_col).mkdir(parents=True, exist_ok=True)
+        slides = pd.read_parquet(Path(local_path) / "slides.parquet")
+        tiles = pd.read_parquet(Path(local_path) / "tiles.parquet")
 
-    process_items(
-        slides.itertuples(),
-        process_slide,
-        fn_kwargs={
-            "percentage_cols": config.tile_mask.percentage_cols,
-            "output_path": output_path,
-            "tiles": tiles,
-        },
-        max_concurrent=config.tile_mask.max_concurrent,
-    )
+        output_path = Path(config.output_dir) / name
+        output_path.mkdir(exist_ok=True, parents=True)
 
-    # logger.log_artifacts(local_dir=str(output_path), artifact_path="tile_masks")
+        for percentage_col in [
+            *config.percentage_cols,
+            "outlines",
+        ]:
+            (output_path / percentage_col).mkdir(parents=True, exist_ok=True)
+
+        process_items(
+            slides.itertuples(),
+            process_slide,
+            fn_kwargs={
+                "percentage_cols": config.percentage_cols,
+                "output_path": output_path,
+                "tiles": tiles,
+            },
+            max_concurrent=config.max_concurrent,
+        )
+
+        logger.log_artifacts(output_path, artifact_path=f"tile_masks/{name}")
 
 
 if __name__ == "__main__":

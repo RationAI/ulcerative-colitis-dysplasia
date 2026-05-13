@@ -1,0 +1,11 @@
+# @package _global_
+
+output_dir: ${project_path}/tile_masks
+max_concurrent: 5
+tile_uris: []
+percentage_cols: ["LG Dysplasia", "HG Dysplasia"]
+
+
+metadata:
+  run_name: "⊞ Tile Masks"
+  description: "Ulcerative Colitis Dysplasia Tile Masks"

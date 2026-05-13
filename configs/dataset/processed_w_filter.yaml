@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - /dataset/processed_w_tiling@_here_
+  - _self_
+
+mlflow_uris:
+  filtered: 
+    train: mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/train
+    test_preliminary: mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/test_preliminary
+    test_final: mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/test_final
