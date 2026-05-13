@@ -1,18 +1,15 @@
 defaults:
   - hydra: default
   - logger: mlflow
-  - paths
-  - uris
   - _self_
 
-cohort: ???
 token: ???
-model: ???
-level: ???
+model: prov-gigapath
+level: 2
 
-tiling_uris: ${uris.tiling.${level}.${cohort}.all}
+tiling_uri: mlflow-artifacts:/111/5a9ef435f56a489f949d22452edde29b/artifacts/tiling
 
-output_folder: ${paths.embeddings.${level}.${cohort}.${model}}
+output_dir: ${project_path}/embeddings
 
 skip_existing: False
 
@@ -22,7 +19,7 @@ dataloader:
   persistent_workers: True
 
 metadata:
-  experiment_name: Ulcerative Colitis
-  run_name: '📂 Tile Embeddings: ${cohort} ${model} (level=${level})'
-  description: 'Ulcerative Colitis' 
-  user: AdamK
+  experiment_name: Ulcerative Colitis Dysplasia
+  run_name: '📂 Tile Embeddings'
+  description: 'Ulcerative Colitis Dysplasia Tile Embeddings' 
+  user: Borisim
