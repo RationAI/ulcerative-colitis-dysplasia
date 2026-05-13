@@ -3,7 +3,7 @@ from torch import Tensor, nn
 from torch.optim.optimizer import Optimizer
 from torchmetrics import MetricCollection
 
-from ml.typing import Input, Outputs
+from dysplasia.typing import Input, Outputs
 
 
 class MetaArch(LightningModule):
