@@ -10,12 +10,13 @@ import torch
 from huggingface_hub import login
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
-from rationai.mlkit.autolog import autolog
+from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 from timm.layers.mlp import SwiGLUPacked
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from ulcerative_colitis.data.datasets import TilesPredict
+
+from dysplasia.data.datasets import TilesPredict
 
 
 class FoundationModel(Enum):
@@ -169,7 +170,8 @@ def save_embeddings(
     df.to_parquet(embeddings_path, index=False, engine="pyarrow")
 
 
-@hydra.main(config_path="../configs", config_name="tile_embeddings", version_base=None)
+@with_cli_args(["+preprocessing=embeddings"])
+@hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: Logger | None = None) -> None:
     assert logger is not None, "Need logger"
@@ -182,14 +184,24 @@ def main(config: DictConfig, logger: Logger | None = None) -> None:
     tile_encoder = load_tile_encoder(model).to(device).eval()
     embedding_dim = embeddings_dimension(model)
 
-    output_folder = Path(config.output_folder)
+    output_folder = Path(config.output_dir)
 
     with torch.no_grad():
         dataset = load_dataset(config.tiling_uris)
 
-        for slide_dataset in tqdm(dataset.generate_datasets()):
+        try:
+            total_slides = len(dataset.slides)  # type: ignore[arg-type]
+        except Exception:
+            total_slides = None
+
+        print("Processing slides and extracting embeddings...")
+        for slide_dataset in tqdm(
+            dataset.generate_datasets(), total=total_slides, desc="Slides"
+        ):
             slide_name = str(slide_dataset.slide_metadata["name"])
-            embeddings_path = (output_folder / slide_name).with_suffix(".parquet")
+            embeddings_path = (output_folder / model.value / slide_name).with_suffix(
+                ".parquet"
+            )
 
             if config.skip_existing and embeddings_path.exists():
                 continue
@@ -206,7 +218,14 @@ def main(config: DictConfig, logger: Logger | None = None) -> None:
             slide_tiles_x = torch.zeros((len(slide_dataset),), dtype=torch.int32)
             slide_tiles_y = torch.zeros((len(slide_dataset),), dtype=torch.int32)
 
-            for i, (x, metadata) in enumerate(slide_tiles_dataloader):
+            for i, (x, metadata) in enumerate(
+                tqdm(
+                    slide_tiles_dataloader,
+                    total=len(slide_tiles_dataloader),
+                    desc=f"{slide_name} batches",
+                    leave=False,
+                )
+            ):
                 x = x.to(device)
                 embeddings = process_output(tile_encoder(x), model)
                 start = i * config.dataloader.batch_size
@@ -226,6 +245,9 @@ def main(config: DictConfig, logger: Logger | None = None) -> None:
                 local_path=str(embeddings_path),
                 artifact_path="embeddings",
             )
+            break
+
+        print("DEBUG: Script reached the end.")
 
 
 if __name__ == "__main__":
