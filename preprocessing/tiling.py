@@ -304,13 +304,24 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_dir = Path(tmpdir) / name
             save_dir.mkdir(parents=True, exist_ok=True)
-            ds_slides.write_parquet(str(save_dir / "slides"))
-            ds_tiles.write_parquet(str(save_dir / "tiles"), partition_cols=["slide_id"])
+
+            slides_pd = ds_slides.to_pandas()
+            tiles_pd = ds_tiles.to_pandas()
+
+            slides_pd.to_parquet(save_dir / "slides.parquet", index=False)
+            tiles_pd.to_parquet(save_dir / "tiles.parquet", index=False)
 
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":
+    import psutil
+
+    total_mem = psutil.virtual_memory().total
+    cpu_count = psutil.cpu_count()
+    print(f"Allocated Memory: {total_mem / (1024**3):.2f} GiB")
+    print(f"Allocated CPUs: {cpu_count}")
+
     ray.init(runtime_env={"excludes": [".git", ".venv"]})
     try:
         main()
