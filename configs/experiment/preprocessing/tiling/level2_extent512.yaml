@@ -1,0 +1,5 @@
+# @package _global_
+
+mpp: 1.55
+tile_extent: 512
+stride: 256

@@ -18,6 +18,8 @@ dependencies = [
     "mlflow>=3.10.1",
     "scikit-learn",         
     "openpyxl",     
+    "omegaconf",
+    "shapely",
     "rationai-sdk>=0.1.0",
     "rationai-masks",         
     "rationai-mlkit",
