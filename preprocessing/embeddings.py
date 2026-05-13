@@ -15,7 +15,6 @@ from rationai.mlkit.lightning.loggers import MLFlowLogger
 from timm.layers.mlp import SwiGLUPacked
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 from ulcerative_colitis.data.datasets import TilesPredict
 
 
@@ -168,6 +167,7 @@ def save_embeddings(
     )
 
     df.to_parquet(embeddings_path, index=False, engine="pyarrow")
+
 
 @hydra.main(config_path="../configs", config_name="tile_embeddings", version_base=None)
 @autolog

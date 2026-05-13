@@ -5,7 +5,7 @@ from lightning import LightningDataModule
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from ml.typing import Input
+from dysplasia.typing import Input
 
 
 class DataModule(LightningDataModule):
