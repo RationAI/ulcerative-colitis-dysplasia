@@ -27,6 +27,7 @@ dependencies = [
     "rationai-masks",
     "rationai-mlkit",
     "ratiopath",
+    "timm>=1.0.27",
 ]
 
 [tool.uv.sources]

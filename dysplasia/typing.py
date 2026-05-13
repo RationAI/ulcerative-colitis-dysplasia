@@ -51,3 +51,5 @@ type SlideEmbeddingsInput = tuple[Tensor, Tensor, list[MetadataSlideEmbeddings]]
 type SlideEmbeddingsPredictInput = tuple[Tensor, list[MetadataSlideEmbeddings]]
 
 type Output = Tensor
+type Input = Tensor
+type Outputs = Tensor

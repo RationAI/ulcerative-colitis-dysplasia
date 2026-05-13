@@ -1,22 +1,22 @@
-defaults:
-  - hydra: default
-  - logger: mlflow
-  - _self_
+# @package _global_
 
-token: ???
+token: ${oc.env:HF_TOKEN,null}
 model: prov-gigapath
 level: 2
 
-tiling_uri: mlflow-artifacts:/111/5a9ef435f56a489f949d22452edde29b/artifacts/tiling
+tiling_uris: 
+ - mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/train
+ - mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/test_preliminary
+ - mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/test_final
 
 output_dir: ${project_path}/embeddings
 
-skip_existing: False
+skip_existing: True
 
 dataloader:
-  batch_size: 2048
-  num_workers: 8
-  persistent_workers: True
+  batch_size: 192
+  num_workers: 0
+  persistent_workers: False
 
 metadata:
   experiment_name: Ulcerative Colitis Dysplasia

@@ -4,10 +4,11 @@ from typing import Generic, TypeVar
 import pandas as pd
 from albumentations.core.composition import TransformType
 from albumentations.pytorch import ToTensorV2
+from datasets import Dataset as HFDataset
 from rationai.mlkit.data.datasets import MetaTiledSlides, OpenSlideTilesDataset
 from torch.utils.data import Dataset
 
-from dysplasia.data.datasets.labels import LabelMode, get_label, process_slides
+from dysplasia.data.datasets.labels import process_slides
 from dysplasia.typing import MetadataTiles, TilesPredictSample, TilesSample
 
 
@@ -18,8 +19,7 @@ class _Tiles(Dataset[T], Generic[T]):
     def __init__(
         self,
         slide_metadata: pd.Series,
-        tiles: pd.DataFrame,
-        mode: LabelMode | str | None,
+        tiles: HFDataset,
         include_labels: bool = True,
         transforms: TransformType | None = None,
     ) -> None:
@@ -32,7 +32,6 @@ class _Tiles(Dataset[T], Generic[T]):
             tiles=tiles,
         )
         self.slide_metadata = slide_metadata
-        self.mode = LabelMode(mode) if mode is not None else None
         self.include_labels = include_labels
         self.transforms = transforms
         self.to_tensor = ToTensorV2()
@@ -45,22 +44,18 @@ class _Tiles(Dataset[T], Generic[T]):
 
     def __getitem__(self, idx: int) -> TilesSample | TilesPredictSample:
         image = self.slide_tiles[idx]
+        tile = self.slide_tiles.tiles[idx]
         metadata = MetadataTiles(
             slide_id=self.slide_tiles.slide_path.stem,
-            x=self.slide_tiles.tiles.iloc[idx]["x"],
-            y=self.slide_tiles.tiles.iloc[idx]["y"],
+            x=tile["x"],
+            y=tile["y"],
         )
 
         if self.transforms is not None:
             image = self.transforms(image=image)["image"]
 
         image = self.to_tensor(image=image)["image"]
-        if not self.include_labels:
-            return image, metadata
-
-        assert self.mode is not None, "Mode must be specified for labels."
-        label = get_label(self.slide_metadata, self.mode)
-        return image, label, metadata
+        return image, metadata
 
 
 class TilesPredict(MetaTiledSlides[TilesPredictSample]):
@@ -78,7 +73,6 @@ class TilesPredict(MetaTiledSlides[TilesPredictSample]):
             _Tiles(
                 slide_metadata=slide,
                 tiles=self.filter_tiles_by_slide(slide["id"]),
-                mode=None,
                 include_labels=False,
                 transforms=self.transforms,
             )
