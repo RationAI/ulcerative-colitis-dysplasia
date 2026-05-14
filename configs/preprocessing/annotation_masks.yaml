@@ -5,7 +5,10 @@ max_concurrent: 4
 target_groups:
   "LG Dysplasia": 255
   "HG Dysplasia": 128
-  "Loose HG Dysplasia": 128
+
+dataset_uri: mlflow-artifacts:/111/2cb0c5eb7a484b37bc4c52cbc07e3725/artifacts/dataset.csv
+annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
+output_dir: /mnt/projects/inflammatory_bowel_disease/ulcerative_colitis_dysplasia/annotation_masks
 
 metadata:
   run_name: "✍ Annotation masks Creation"
