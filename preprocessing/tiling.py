@@ -2,7 +2,7 @@ import re
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import hydra
 import mlflow
@@ -25,6 +25,20 @@ from shapely.geometry.base import BaseGeometry
 QC_BLUR_MEAN_COLUMN = "mean_coverage(Piqe)"
 QC_ARTIFACTS_MEAN_COLUMN = "mean_coverage(ResidualArtifactsAndCoverage)"
 QC_SUBFOLDERS = {"blur": "blur_per_pixel", "artifacts": "artifacts_per_pixel"}
+
+
+class _RayCpuResources(TypedDict):
+    num_cpus: float
+
+
+class _RayMemResources(TypedDict):
+    memory: int
+
+
+LO_CPU: _RayCpuResources = {"num_cpus": 0.1}
+HI_CPU: _RayCpuResources = {"num_cpus": 0.2}
+LO_MEM: _RayMemResources = {"memory": 128 * 1024**2}
+HI_MEM: _RayMemResources = {"memory": 256 * 1024**2}
 
 
 def qc_agg(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
@@ -210,16 +224,16 @@ def tiling(
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
-        .map(row_hash)
-        .map(add_annot_path, fn_args=(df,))
-        .map(qc_agg, fn_args=(qc_df,))  # pyright: ignore[reportArgumentType]
+        .map(row_hash, **LO_CPU, **LO_MEM)
+        .map(add_annot_path, fn_args=(df,), **LO_CPU, **LO_MEM)
+        .map(qc_agg, fn_args=(qc_df,), **HI_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
     if "fold" in df.columns:
-        slides = slides.map(add_fold, fn_args=(df,))  # pyright: ignore[reportArgumentType]
+        slides = slides.map(add_fold, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
 
     if "clarity" in df.columns:
-        slides = slides.map(add_clarity, fn_args=(df,))  # pyright: ignore[reportArgumentType]
+        slides = slides.map(add_clarity, fn_args=(df,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
 
     tissue_roi = create_tissue_roi(tile_extent)
     full_roi = create_full_roi(tile_extent)
@@ -228,10 +242,14 @@ def tiling(
         slides.map(
             add_mask_paths,  # pyright: ignore[reportArgumentType]
             fn_args=(qc_folder, tissue_folder),
+            **LO_CPU,
+            **LO_MEM,
         )
         .flat_map(
             tile,
             fn_args=(full_roi, annot_folder, target_groups),
+            **HI_CPU,
+            **LO_MEM,
         )
         .repartition(target_num_rows_per_block=4096)
         .with_column(
@@ -244,9 +262,11 @@ def tiling(
                 col("mpp_x"),
                 col("mpp_y"),
             ),  # pyright: ignore[reportCallIssue]
+            **HI_CPU,
+            **HI_MEM,
         )
-        .map(extract_coverages, fn_args=("tissue",))  # pyright: ignore[reportArgumentType]
-        .filter(filter_tissue, fn_args=(tissue_threshold,))  # pyright: ignore[reportArgumentType]
+        .map(extract_coverages, fn_args=("tissue",), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        .filter(filter_tissue, fn_args=(tissue_threshold,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
         .with_column(
             "blur_overlap",
             tile_overlay_overlap(
@@ -257,6 +277,8 @@ def tiling(
                 col("mpp_x"),
                 col("mpp_y"),
             ),  # pyright: ignore[reportCallIssue]
+            **HI_CPU,
+            **HI_MEM,
         )
         .with_column(
             "artifacts_overlap",
@@ -268,9 +290,11 @@ def tiling(
                 col("mpp_x"),
                 col("mpp_y"),
             ),  # pyright: ignore[reportCallIssue]
+            **HI_CPU,
+            **HI_MEM,
         )
-        .map(extract_coverages, fn_args=("blur", "artifacts"))  # pyright: ignore[reportArgumentType]
-        .map(select, fn_args=(target_groups,))  # pyright: ignore[reportArgumentType]
+        .map(extract_coverages, fn_args=("blur", "artifacts"), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
+        .map(select, fn_args=(target_groups,), **LO_CPU, **LO_MEM)  # pyright: ignore[reportArgumentType]
     )
 
     return slides, tiles
@@ -315,13 +339,6 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
 
 if __name__ == "__main__":
-    import psutil
-
-    total_mem = psutil.virtual_memory().total
-    cpu_count = psutil.cpu_count()
-    print(f"Allocated Memory: {total_mem / (1024**3):.2f} GiB")
-    print(f"Allocated CPUs: {cpu_count}")
-
     ray.init(runtime_env={"excludes": [".git", ".venv"]})
     try:
         main()
