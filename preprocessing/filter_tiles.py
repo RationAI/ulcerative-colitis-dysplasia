@@ -64,13 +64,6 @@ def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
     valid_clusters = sorted_group.groupby("_cluster")["annotation"].sum()
     valid_ids = valid_clusters[valid_clusters > 0].index
 
-    if len(valid_ids) > 1:
-        slide_id = group["slide_id"].iloc[0]
-        raise ValueError(
-            f"Slide {slide_id} has annotations in {len(valid_ids)} different tissue columns. "
-            "Only one column can be annotated per slide."
-        )
-
     filtered = sorted_group[sorted_group["_cluster"].isin(valid_ids)]
 
     return filtered.drop(columns=["_cluster"])
@@ -80,17 +73,14 @@ def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    tiling_uri = config.mlflow_uris.tiling
-
     with tempfile.TemporaryDirectory() as tmpdir:
-        for split in config.splits:
-            split_uri = f"{tiling_uri}/{split}"
+        for split, split_uri in config.mlflow_uris.tiling.items():
             local_dir = Path(mlflow.artifacts.download_artifacts(split_uri))
 
-            slides_dir = local_dir / "slides"
-            tiles_dir = local_dir / "tiles"
+            slides = local_dir / "slides.parquet"
+            tiles = local_dir / "tiles.parquet"
 
-            ds_tiles = ray.data.read_parquet(str(tiles_dir))
+            ds_tiles = ray.data.read_parquet(str(tiles))
             filtered_ds_tiles = ds_tiles.groupby("slide_id").map_groups(
                 filter_slide_tiles, batch_format="pandas"
             )
@@ -98,12 +88,12 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             save_dir = Path(tmpdir) / split
             save_dir.mkdir(parents=True, exist_ok=True)
 
-            ds_slides = ray.data.read_parquet(str(slides_dir))
-            ds_slides.write_parquet(str(save_dir / "slides"))
+            ds_slides = ray.data.read_parquet(str(slides))
+            slides_pd = ds_slides.to_pandas()
+            tiles_pd = filtered_ds_tiles.to_pandas()
 
-            filtered_ds_tiles.write_parquet(
-                str(save_dir / "tiles"), partition_cols=["slide_id"]
-            )
+            slides_pd.to_parquet(save_dir / "slides.parquet", index=False)
+            tiles_pd.to_parquet(save_dir / "tiles.parquet", index=False)
 
         if logger is not None:
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
