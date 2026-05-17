@@ -1,0 +1,5 @@
+# @package _global_
+
+metadata:
+  run_name: "Mean/Std - ${dataset.tile_extent}px @ ${dataset.mpp}mpp"
+  description: "Calculate mean and std for dysplasia project"
