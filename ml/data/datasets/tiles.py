@@ -12,7 +12,7 @@ from ml.data.datasets.utils import filter_tiles
 from ml.typing import MetadataTiles, TilesPredictSample, TilesSample
 
 
-class _Tiles[T: TilesSample | TilesPredictSample](Dataset[T]):
+class SlideTiles[T: TilesSample | TilesPredictSample](Dataset[T]):
     def __init__(
         self,
         slide_metadata: dict[str, Any],
@@ -79,12 +79,12 @@ class Tiles(MetaTiledSlides[TilesSample]):
         self.is_val = is_val
         super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
 
-    def generate_datasets(self) -> Iterable[_Tiles[TilesSample]]:
+    def generate_datasets(self) -> Iterable[SlideTiles[TilesSample]]:
         self.slides = process_slides(
             self.slides, val_fold=self.val_fold, is_val=self.is_val
         )
         return (
-            _Tiles(
+            SlideTiles(
                 slide_metadata=dict(slide),
                 tiles=filter_tiles(
                     self.filter_tiles_by_slide(dict(slide)["id"]), self.thresholds
@@ -108,10 +108,10 @@ class TilesPredict(MetaTiledSlides[TilesPredictSample]):
         self.thresholds = thresholds or {}
         super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
 
-    def generate_datasets(self) -> Iterable[_Tiles[TilesPredictSample]]:
+    def generate_datasets(self) -> Iterable[SlideTiles[TilesPredictSample]]:
         self.slides = process_slides(self.slides)
         return (
-            _Tiles(
+            SlideTiles(
                 slide_metadata=dict(slide),
                 tiles=filter_tiles(
                     self.filter_tiles_by_slide(dict(slide)["id"]), self.thresholds
