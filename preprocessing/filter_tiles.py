@@ -77,8 +77,8 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         for split, split_uri in config.mlflow_uris.tiling.items():
             local_dir = Path(mlflow.artifacts.download_artifacts(split_uri))
 
-            slides = local_dir / "slides.parquet"
-            tiles = local_dir / "tiles.parquet"
+            slides = local_dir / "slides"
+            tiles = local_dir / "tiles"
 
             ds_tiles = ray.data.read_parquet(str(tiles))
             filtered_ds_tiles = ds_tiles.groupby("slide_id").map_groups(
@@ -89,14 +89,13 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             save_dir.mkdir(parents=True, exist_ok=True)
 
             ds_slides = ray.data.read_parquet(str(slides))
-            slides_pd = ds_slides.to_pandas()
-            tiles_pd = filtered_ds_tiles.to_pandas()
+            rows = config.row_per_file
+            ds_slides.write_parquet(str(save_dir / "slides"), min_rows_per_file=rows)
+            filtered_ds_tiles.write_parquet(
+                str(save_dir / "tiles"), min_rows_per_file=rows
+            )
 
-            slides_pd.to_parquet(save_dir / "slides.parquet", index=False)
-            tiles_pd.to_parquet(save_dir / "tiles.parquet", index=False)
-
-        if logger is not None:
-            mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
+        logger.log_artifacts(tmpdir, config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":
