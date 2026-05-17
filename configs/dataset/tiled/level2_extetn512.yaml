@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - /dataset/processed_w_masks@_here_
+  - _self_
+
+mpp: 1.55
+tile_extent: 512
+stride: 256
+
+mlflow_uris:
+  tiling: 
+    train: ???
+    test_preliminary: ???
+    test_final: ???

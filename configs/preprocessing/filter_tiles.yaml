@@ -8,5 +8,5 @@ splits:
   - test_final
 
 metadata:
-  run_name: "Filter Tiles"
+  run_name: "Filter Tiles - ${dataset.tile_extent}px @ ${dataset.mpp}mpp"
   description: "Filter tiles for dysplasia project"
