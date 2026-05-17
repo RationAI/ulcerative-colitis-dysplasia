@@ -2,7 +2,7 @@ import re
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 
 import hydra
 import mlflow
