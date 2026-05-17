@@ -304,8 +304,9 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_dir = Path(tmpdir) / name
             save_dir.mkdir(parents=True, exist_ok=True)
-            ds_slides.write_parquet(str(save_dir / "slides"))
-            ds_tiles.write_parquet(str(save_dir / "tiles"), partition_cols=["slide_id"])
+            rows = config.row_per_file
+            ds_slides.write_parquet(str(save_dir / "slides"), min_rows_per_file=rows)
+            ds_tiles.write_parquet(str(save_dir / "tiles"), min_rows_per_file=rows)
 
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 

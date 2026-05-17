@@ -1,7 +1,10 @@
 [project]
-name = "project-name"
+name = "ulcerative-colitis-dysplasia"
 version = "0.1.0"
-authors = []
+authors = [
+    {name = "Šimon Bořil", email = "519192@mail.muni.cz"},
+    {name = "Adam Kukučka", email = "adam.kukucka@mail.muni.cz"},
+]
 requires-python = ">=3.12,<3.14"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -26,9 +29,6 @@ dependencies = [
     "ratiopath",            
 ]
 
-[project.optional-dependencies]
-job = ["rationai-kube-jobs"]
-
 [tool.uv.sources]
 rationai-sdk = { git = "https://gitlab.ics.muni.cz/rationai/infrastructure/rationai-sdk-python.git" }
 rationai-kube-jobs = { git = "ssh://git@gitlab.ics.muni.cz/rationai/infrastructure/kube-jobs" }
@@ -37,4 +37,5 @@ rationai-masks = { git = "https://gitlab.ics.muni.cz/rationai/digital-pathology/
 ratiopath = { git = "https://github.com/RationAI/ratiopath.git" }
 
 [dependency-groups]
-dev = ["mypy", "ruff"]
+dev = ["mypy", "ruff", "ipykernel"]
+job = ["rationai-kube-jobs"]

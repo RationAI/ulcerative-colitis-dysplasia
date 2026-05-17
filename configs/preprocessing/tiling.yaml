@@ -5,10 +5,16 @@ tile_extent: ???
 stride: ???
 tissue_threshold: 0.5
 mlflow_artifact_path: tiling
+row_per_file: 50_000
 target_groups:
   - "LG Dysplasia"
   - "HG Dysplasia"
 
 metadata:
-  run_name: "🧩 Tiling"
+  run_name: "🧩 Tiling - ${tile_extent}px @ ${mpp}mpp"
   description: "Create tiles for dysplasia project"
+  hyperparameters:
+    mpp: ${mpp}
+    tile_extent: ${tile_extent}
+    stride: ${stride}
+    tissue_threshold: ${tissue_threshold}
