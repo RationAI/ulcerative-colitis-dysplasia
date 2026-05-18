@@ -10,6 +10,6 @@ stride: 256
 
 mlflow_uris:
   tiling: 
-    train: ???
-    test_preliminary: ???
-    test_final: ???
+    train: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/train
+    test_preliminary: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/test_preliminary
+    test_final: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/test_final
