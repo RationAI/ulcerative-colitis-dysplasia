@@ -1,0 +1,3 @@
+_target_: ml.modeling.decode_head.EmbeddingClassifier
+in_features: ???
+out_features: ???

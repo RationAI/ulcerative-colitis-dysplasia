@@ -7,7 +7,6 @@ from rationai.mlkit import Trainer, autolog
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 
 from ml.data import DataModule
-from ml.meta_arch import MetaArch
 
 
 OmegaConf.register_new_resolver(
@@ -25,7 +24,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         _recursive_=False,  # to avoid instantiating all the datasets
         _target_=DataModule,
     )
-    model = hydra.utils.instantiate(config.model, _target_=MetaArch)
+    model = hydra.utils.instantiate(config.model)
 
     trainer = hydra.utils.instantiate(config.trainer, _target_=Trainer, logger=logger)
     getattr(trainer, config.mode)(model, datamodule=data, ckpt_path=config.checkpoint)

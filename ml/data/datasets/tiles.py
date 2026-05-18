@@ -9,10 +9,10 @@ from torch.utils.data import Dataset
 
 from ml.data.datasets.lables import LabelMode, get_label, process_slides
 from ml.data.datasets.utils import filter_tiles
-from ml.typing import MetadataTiles, TilesPredictSample, TilesSample
+from ml.typing import Metadata, PredictSample, Sample
 
 
-class SlideTiles[T: TilesSample | TilesPredictSample](Dataset[T]):
+class SlideTiles[T: Sample | PredictSample](Dataset[T]):
     def __init__(
         self,
         slide_metadata: dict[str, Any],
@@ -43,7 +43,7 @@ class SlideTiles[T: TilesSample | TilesPredictSample](Dataset[T]):
 
     def __getitem__(self, idx: int) -> T:
         image = self.slide_tiles[idx]
-        metadata = MetadataTiles(
+        metadata = Metadata(
             slide_name=self.slide_tiles.slide_path.stem,
             x=self.slide_tiles.tiles[idx]["x"],
             y=self.slide_tiles.tiles[idx]["y"],
@@ -62,7 +62,7 @@ class SlideTiles[T: TilesSample | TilesPredictSample](Dataset[T]):
         return cast("T", (image, label, metadata))
 
 
-class Tiles(MetaTiledSlides[TilesSample]):
+class Tiles(MetaTiledSlides[Sample]):
     def __init__(
         self,
         uris: Iterable[str] | str,
@@ -79,7 +79,7 @@ class Tiles(MetaTiledSlides[TilesSample]):
         self.is_val = is_val
         super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
 
-    def generate_datasets(self) -> Iterable[SlideTiles[TilesSample]]:
+    def generate_datasets(self) -> Iterable[SlideTiles[Sample]]:
         self.slides = process_slides(
             self.slides, val_fold=self.val_fold, is_val=self.is_val
         )
@@ -97,7 +97,7 @@ class Tiles(MetaTiledSlides[TilesSample]):
         )
 
 
-class TilesPredict(MetaTiledSlides[TilesPredictSample]):
+class TilesPredict(MetaTiledSlides[PredictSample]):
     def __init__(
         self,
         uris: Iterable[str] | str,
@@ -108,7 +108,7 @@ class TilesPredict(MetaTiledSlides[TilesPredictSample]):
         self.thresholds = thresholds or {}
         super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
 
-    def generate_datasets(self) -> Iterable[SlideTiles[TilesPredictSample]]:
+    def generate_datasets(self) -> Iterable[SlideTiles[PredictSample]]:
         self.slides = process_slides(self.slides)
         return (
             SlideTiles(

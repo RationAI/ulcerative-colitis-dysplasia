@@ -9,7 +9,7 @@ from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 
 from ml.data.datasets import SlideTiles, TilesPredict
-from ml.typing import TilesPredictSample
+from ml.typing import PredictSample
 
 
 @ray.remote
@@ -39,7 +39,7 @@ stats_actor = StatsActor.remote()  # type: ignore[attr-defined]
 
 
 @ray.remote
-def process_slide(slide: SlideTiles[TilesPredictSample]) -> None:
+def process_slide(slide: SlideTiles[PredictSample]) -> None:
     """Process the slide.
 
     Read the slide tiles and save the mean and std of tiles into the stats actor.

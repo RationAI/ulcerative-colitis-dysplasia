@@ -1,0 +1,6 @@
+_target_: ml.embedding_model.EmbeddingModel
+decode_head:
+  _target_: ml.modeling.decode_head.EmbeddingClassifier
+  in_features: 2560
+  out_features: ???
+lr: ???
