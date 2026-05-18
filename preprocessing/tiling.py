@@ -280,11 +280,11 @@ def tiling(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    qc_folder = Path(download_artifacts(config.mlflow_uris.qc))
-    tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue))
-    annot_folder = Path(config.annot_path)
+    qc_folder = Path(download_artifacts(config.dataset.mlflow_uris.qc))
+    tissue_folder = Path(download_artifacts(config.dataset.mlflow_uris.tissue))
+    annot_folder = Path(config.dataset.annot_path)
 
-    for name, split_uri in config.mlflow_uris.splits.items():
+    for name, split_uri in config.dataset.mlflow_uris.splits.items():
         split = pd.read_csv(
             mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
         )

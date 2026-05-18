@@ -48,7 +48,7 @@ def add_folds(train: pd.DataFrame, n_folds: int) -> pd.DataFrame:
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset = pd.read_csv(download_artifacts(config.mlflow_uris.dataset))
+    dataset = pd.read_csv(download_artifacts(config.dataset.mlflow_uris.dataset))
 
     train, test_preliminary, test_final = split_dataset(
         dataset, config.splits, config.random_state

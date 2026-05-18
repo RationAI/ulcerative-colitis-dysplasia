@@ -74,7 +74,7 @@ def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        for split, split_uri in config.mlflow_uris.tiling.items():
+        for split, split_uri in config.dataset.mlflow_uris.tiling.items():
             local_dir = Path(mlflow.artifacts.download_artifacts(split_uri))
 
             slides = local_dir / "slides"

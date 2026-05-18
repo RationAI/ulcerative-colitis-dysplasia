@@ -86,7 +86,9 @@ async def qc_main(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset = pd.read_csv(download_artifacts(artifact_uri=config.mlflow_uris.dataset))
+    dataset = pd.read_csv(
+        download_artifacts(artifact_uri=config.dataset.mlflow_uris.dataset)
+    )
 
     output_path = Path(config.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
