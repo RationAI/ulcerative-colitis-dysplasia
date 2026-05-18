@@ -93,10 +93,10 @@ def create_dataset(
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     dataset, missing_slides = create_dataset(
         config.data_path,
-        config.annot_path,
-        config.selected_clear_cases,
-        config.selected_unclear_cases,
-        config.regex_pattern,
+        config.dataset.annot_path,
+        config.dataset.selected_clear_cases,
+        config.dataset.selected_unclear_cases,
+        config.dataset.regex_pattern,
     )
 
     with tempfile.TemporaryDirectory() as tmpdir:

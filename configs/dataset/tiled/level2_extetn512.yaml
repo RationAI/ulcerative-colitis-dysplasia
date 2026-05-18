@@ -1,0 +1,13 @@
+defaults:
+  - /dataset/processed_w_masks@_here_
+  - _self_
+
+mpp: 1.55
+tile_extent: 512
+stride: 256
+
+mlflow_uris:
+  tiling: 
+    train: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/train
+    test_preliminary: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/test_preliminary
+    test_final: mlflow-artifacts:/111/22da7833f0cc4a80b8b67364ea52c502/artifacts/tiling/test_final
