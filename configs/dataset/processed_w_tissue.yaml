@@ -1,0 +1,6 @@
+defaults:
+  - /dataset/processed@_here_
+  - _self_
+
+mlflow_uris:
+  tissue: mlflow-artifacts:/111/97084241311949189445f864d42e9d4e/artifacts/tissue_masks
