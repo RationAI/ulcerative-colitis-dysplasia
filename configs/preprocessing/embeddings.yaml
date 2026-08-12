@@ -1,0 +1,18 @@
+# @package _global_
+
+model: virchow2
+output_dir: ${project_path}/embeddings/${dataset.mpp}mpp
+mlflow_artifact_path: embeddings
+concurrency: 512
+block_size: 128
+rows_per_file: 50000
+
+metadata:
+  run_name: "🔢 Embeddings - ${dataset.mpp}mpp"
+
+  description: Tile embeddings using model ${model}
+  hyperparams:
+    model: ${model}
+    concurrency: ${concurrency}
+    block_size: ${block_size}
+    rows_per_file: ${rows_per_file}

@@ -4,6 +4,6 @@ defaults:
 
 mlflow_uris:
   tiling_filtered: 
-    train: mlflow-artifacts:/111/d63914be6d2c4f88a6f4e643f7504c51/artifacts/filtered_tiles/train
-    test_preliminary: mlflow-artifacts:/111/d63914be6d2c4f88a6f4e643f7504c51/artifacts/filtered_tiles/test_preliminary
-    test_final: mlflow-artifacts:/111/d63914be6d2c4f88a6f4e643f7504c51/artifacts/filtered_tiles/test_final
+    train: mlflow-artifacts:/111/ca279f80074a4d3db7526209ee989d58/artifacts/filtered_tiles/train
+    test_preliminary: mlflow-artifacts:/111/ca279f80074a4d3db7526209ee989d58/artifacts/filtered_tiles/test_preliminary
+    test_final: mlflow-artifacts:/111/ca279f80074a4d3db7526209ee989d58/artifacts/filtered_tiles/test_final
