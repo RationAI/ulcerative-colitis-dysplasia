@@ -5,14 +5,14 @@ from pathlib import Path
 from typing import Any, cast
 
 import hydra
-import mlflow
+import mlflow.artifacts
 import pandas as pd
 import ray
 from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
-from ratiopath.parsers.empaia_parser import EMPAIAParser
+from ratiopath.parsers import EMPAIAParser
 from ratiopath.ray import read_slides
 from ratiopath.tiling import grid_tiles, tile_annotations, tile_overlay_overlap
 from ratiopath.tiling.utils import row_hash
@@ -55,16 +55,18 @@ def add_mask_paths(
     row: dict[str, Any],
     qc_folder: Path,
     tissue_folder: Path,
+    epithelium_folder: Path,
 ) -> dict[str, Any]:
     stem = Path(row["path"]).stem
     row["tissue_mask_path"] = str(tissue_folder / f"{stem}.tiff")
+    row["epithelium_mask_path"] = str(epithelium_folder / f"{stem}.tiff")
     for key, subfolder in QC_SUBFOLDERS.items():
         row[f"{key}_mask_path"] = str(qc_folder / subfolder / f"{stem}.tiff")
 
     return row
 
 
-def create_tissue_roi(tile_extent: int) -> Polygon:
+def create_half_roi(tile_extent: int) -> Polygon:
     offset = tile_extent // 4
     size = tile_extent // 2
     return box(offset, offset, offset + size, offset + size)
@@ -84,11 +86,14 @@ def generate_generators(
     class_generators = []
     parser = EMPAIAParser(annot_path)
     for label in target_groups:
-        polygons = [
-            p
-            for p in parser.get_polygons(name=rf"^{re.escape(label)}$")
-            if not p.is_empty and p.area > 0
-        ]
+        polygons = []
+        for p in parser.get_polygons(name=rf"^{re.escape(label)}$"):
+            if p.is_empty or p.area == 0:
+                continue
+            if not p.is_valid:
+                p = p.buffer(0)
+            if not p.is_empty and p.area > 0:
+                polygons.append(p)
         if not polygons:
             class_generators.append(Polygon() for _ in coords_list)
         else:
@@ -142,6 +147,7 @@ def tile(
                 "clarity": row.get("clarity"),
                 "fold": row.get("fold"),
                 "tissue_mask_path": row["tissue_mask_path"],
+                "epithelium_mask_path": row["epithelium_mask_path"],
                 "blur_mask_path": row["blur_mask_path"],
                 "artifacts_mask_path": row["artifacts_mask_path"],
                 **{
@@ -161,11 +167,12 @@ def tile(
 def extract_coverages(row: dict[str, Any], *cols: str) -> dict[str, Any]:
     for c in cols:
         overlap = row[f"{c}_overlap"]
-        zero_overlap = overlap.get("0", 0)
-        if zero_overlap is None:
-            row[c] = 1.0
-        else:
-            row[c] = 1.0 - zero_overlap
+        expectation = 0.0
+        for key, value in overlap.items():
+            if value is None:
+                continue
+            expectation += int(key) * value
+        row[c] = expectation / 255
 
     return row
 
@@ -181,6 +188,7 @@ def select(row: dict[str, Any], target_labels: list[str]) -> dict[str, Any]:
         "y": row["tile_y"],
         "tissue": row["tissue"],
         "annotation": row["annotation"],
+        "epithelium": row["epithelium"],
         "blur": row["blur"],
         "artifacts": row["artifacts"],
         "clarity": row.get("clarity"),
@@ -197,6 +205,7 @@ def tiling(
     df: pd.DataFrame,
     qc_folder: Path,
     tissue_folder: Path,
+    epithelium_folder: Path,
     annot_folder: Path,
     tile_extent: int,
     stride: int,
@@ -221,23 +230,23 @@ def tiling(
     if "clarity" in df.columns:
         slides = slides.map(add_clarity, fn_args=(df,))  # pyright: ignore[reportArgumentType]
 
-    tissue_roi = create_tissue_roi(tile_extent)
+    half_roi = create_half_roi(tile_extent)
     full_roi = create_full_roi(tile_extent)
 
     tiles = (
         slides.map(
             add_mask_paths,  # pyright: ignore[reportArgumentType]
-            fn_args=(qc_folder, tissue_folder),
+            fn_args=(qc_folder, tissue_folder, epithelium_folder),
         )
         .flat_map(
             tile,
-            fn_args=(full_roi, annot_folder, target_groups),
+            fn_args=(half_roi, annot_folder, target_groups),
         )
         .repartition(target_num_rows_per_block=4096)
         .with_column(
             "tissue_overlap",
             tile_overlay_overlap(
-                tissue_roi,
+                half_roi,
                 col("tissue_mask_path"),
                 col("tile_x"),
                 col("tile_y"),
@@ -269,7 +278,18 @@ def tiling(
                 col("mpp_y"),
             ),  # pyright: ignore[reportCallIssue]
         )
-        .map(extract_coverages, fn_args=("blur", "artifacts"))  # pyright: ignore[reportArgumentType]
+        .with_column(
+            "epithelium_overlap",
+            tile_overlay_overlap(
+                half_roi,
+                col("epithelium_mask_path"),
+                col("tile_x"),
+                col("tile_y"),
+                col("mpp_x"),
+                col("mpp_y"),
+            ),  # pyright: ignore[reportCallIssue]
+        )
+        .map(extract_coverages, fn_args=("blur", "artifacts", "epithelium"))  # pyright: ignore[reportArgumentType]
         .map(select, fn_args=(target_groups,))  # pyright: ignore[reportArgumentType]
     )
 
@@ -283,6 +303,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     qc_folder = Path(download_artifacts(config.dataset.mlflow_uris.qc))
     tissue_folder = Path(download_artifacts(config.dataset.mlflow_uris.tissue))
     annot_folder = Path(config.dataset.annot_path)
+    epithelium_folder = Path(config.dataset.epithelium)
 
     for name, split_uri in config.dataset.mlflow_uris.splits.items():
         split = pd.read_csv(
@@ -293,6 +314,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             split,
             qc_folder=qc_folder,
             tissue_folder=tissue_folder,
+            epithelium_folder=epithelium_folder,
             annot_folder=annot_folder,
             tile_extent=config.tile_extent,
             stride=config.stride,

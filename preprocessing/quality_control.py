@@ -3,6 +3,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TypedDict
 
+import anyio
 import hydra
 import pandas as pd
 from mlflow.artifacts import download_artifacts
@@ -65,8 +66,10 @@ async def qc_main(
             total=len(slides),
         ):
             if not result.success:
-                with open(output_path / "qc_errors.log", "a") as log_file:
-                    log_file.write(
+                async with await anyio.open_file(
+                    output_path / "qc_errors.log", "a"
+                ) as log_file:
+                    await log_file.write(
                         f"Failed to process {result.wsi_path}: {result.error}\n"
                     )
 
