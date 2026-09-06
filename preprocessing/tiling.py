@@ -12,6 +12,7 @@ from mlflow.artifacts import download_artifacts
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
+from ratiopath.parsers import EMPAIAParser
 from ratiopath.ray import read_slides
 from ratiopath.tiling import grid_tiles, tile_annotations, tile_overlay_overlap
 from ratiopath.tiling.utils import row_hash
@@ -19,8 +20,6 @@ from ray.data.expressions import col
 from shapely import Polygon
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
-
-from preprocessing.empaia_parser import EMPAIAParser
 
 
 QC_BLUR_MEAN_COLUMN = "mean_coverage(Piqe)"
