@@ -1,13 +1,10 @@
 from kube_jobs import storage, submit_job
 
 
-# MLflow run (Step 1) that holds the per-model val predictions:
-# artifacts/valfold/<training_run_id>/val_predictions.parquet. Fill this in once
-# the valfold job has finished.
-valfold_run_id = "cee90311d3ef4dc78c0fff97ac40beee"
-
 # Step 2 is CPU-only (it just reads the saved predictions parquets and sweeps
 # thresholds), so no GPU is requested.
+# valfold_run_id (level 2 / 1.55mpp): holds the per-model val predictions under
+# artifacts/valfold/<training_run_id>/val_predictions.parquet.
 submit_job(
     job_name="ulcerative-colitis-dysplasia-valthreshold",
     username="borisim",
@@ -19,8 +16,8 @@ submit_job(
         "git clone -b feature/ml-cnn https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
         "cd workdir",
         "uv sync --frozen",
-        "uv run python -m ml +experiment=ml/valthreshold/virchow2 "
-        "valthreshold.valfold_run_id='" + valfold_run_id + "'",
+        "uv run python -m ml +experiment=ml/valthreshold/virchow2_l2 "
+        "valthreshold.valfold_run_id='974946bd720f4becb74272732532c786'",
     ],
     storage=[storage.secure.DATA, storage.secure.PROJECTS],
 )
