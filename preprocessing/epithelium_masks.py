@@ -26,10 +26,9 @@ async def segment_epithel(
                         pending, return_when=asyncio.FIRST_COMPLETED
                     )
                     for t in done:
-                        try:
-                            t.result()
-                        except Exception as e:
-                            print(f"Slide processing failed: {e}")
+                        error = t.exception()
+                        if error is not None:
+                            print(f"Slide processing failed: {error}")
                     pbar.update(len(done))
 
                 tissue_mask_path = (

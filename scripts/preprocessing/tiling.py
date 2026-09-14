@@ -12,9 +12,11 @@ submit_job(
         "git clone https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
         "cd workdir",
         "uv sync --frozen",
-        "uv run python -m preprocessing.tiling "
-        "+dataset=... "
-        "+experiment/preprocessing/tiling=...",
+        (
+            "uv run python -m preprocessing.tiling "
+            "+dataset=... "
+            "+experiment/preprocessing/tiling=..."
+        ),
     ],
     storage=[storage.secure.DATA],
 )
