@@ -25,23 +25,23 @@ def process_slide(
     tiles: pd.DataFrame,
     level: int,
 ) -> None:
-    slide_tiles = tiles[tiles["slide_id"] == slide.id].copy()
+    slide_tiles = tiles[tiles["slide_id"] == slide["id"]].copy()
     with OpenSlide(slide["path"]) as slide_wsi:
         mask_extent_x, mask_extent_y = slide_wsi.level_dimensions[level]
         mpp_x, mpp_y = slide_wsi.slide_resolution(level)
 
-    tile_extent_x = int(slide.tile_extent_x / mpp_x * slide.mpp_x)
-    tile_extent_y = int(slide.tile_extent_y / mpp_y * slide.mpp_y)
-    stride_x = int(slide.stride_x / mpp_x * slide.mpp_x)
-    stride_y = int(slide.stride_y / mpp_y * slide.mpp_y)
+    tile_extent_x = int(slide["tile_extent_x"] / mpp_x * slide["mpp_x"])
+    tile_extent_y = int(slide["tile_extent_y"] / mpp_y * slide["mpp_y"])
+    stride_x = int(slide["stride_x"] / mpp_x * slide["mpp_x"])
+    stride_y = int(slide["stride_y"] / mpp_y * slide["mpp_y"])
 
     # Convert to target-level pixels using the MPP ratio, then snap to the target
     # stride grid so the outlines and MaskBuilder use the same tile positions.
     slide_tiles["x"] = (
-        slide_tiles["x"] * slide.mpp_x / mpp_x / stride_x
+        slide_tiles["x"] * slide["mpp_x"] / mpp_x / stride_x
     ).round().astype(int) * stride_x
     slide_tiles["y"] = (
-        slide_tiles["y"] * slide.mpp_y / mpp_y / stride_y
+        slide_tiles["y"] * slide["mpp_y"] / mpp_y / stride_y
     ).round().astype(int) * stride_y
 
     in_bounds = (
@@ -61,14 +61,14 @@ def process_slide(
     # size the accumulator to the full tile span and crop back to the slide size.
     num_tiles = (
         np.ceil(np.maximum(0, source_extents - source_tile_extent) / stride).astype(
-            np.int64
+            np.int64,
         )
         + 1
     )
     span = (num_tiles - 1) * stride + source_tile_extent
 
     for percentage_col in [*percentage_cols]:
-        filename = f"{Path(slide.path).stem}.tiff"
+        filename = f"{Path(slide['path']).stem}.tiff"
         save_dir = output_path / percentage_col
         save_dir.mkdir(parents=True, exist_ok=True)
         save_path = save_dir / filename
@@ -81,7 +81,7 @@ def process_slide(
         )
 
         coords = np.stack(
-            [slide_tiles["y"].to_numpy(), slide_tiles["x"].to_numpy()], axis=1
+            [slide_tiles["y"].to_numpy(), slide_tiles["x"].to_numpy()], axis=1,
         )
         data = slide_tiles[percentage_col].to_numpy(dtype=np.float32).reshape(-1, 1)
         if len(coords) > 0:
@@ -103,7 +103,7 @@ def process_slide(
         outline_width=1,
     )
 
-    mask_path = output_path / "outlines" / f"{Path(slide.path).stem}.tiff"
+    mask_path = output_path / "outlines" / f"{Path(slide['path']).stem}.tiff"
     write_big_tiff(
         pyvips.Image.new_from_array(np.array(mask)),
         mask_path,
@@ -122,7 +122,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     for percentage_col in [*config.percentage_cols, "outlines"]:
         (output_path / str(percentage_col)).mkdir(parents=True, exist_ok=True)
 
-    for _name, uri in config.dataset.mlflow_uris.tiling_filtered.items():
+    for uri in config.dataset.mlflow_uris.tiling_filtered.values():
         local_path = Path(mlflow.artifacts.download_artifacts(uri))
 
         slides = pd.read_parquet(local_path / "slides")
@@ -140,10 +140,9 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             max_concurrent=config.max_concurrent,
         )
 
-        logger.log_artifacts(
-            str(output_path), artifact_path=config.mlflow_artifact_path
-        )
+    logger.log_artifacts(str(output_path), artifact_path=config.mlflow_artifact_path)
 
 
 if __name__ == "__main__":
-    main()
+    with ray.init(runtime_env={"excludes": [".git", ".venv"]}):  # type: ignore[call-arg]
+        main()
