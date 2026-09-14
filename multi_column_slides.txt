@@ -1,3 +1,0 @@
-/mnt/data/IKEM/colon/IBD_AI/dysplasia/1064_09_HE_A.czi
-/mnt/data/IKEM/colon/IBD_AI/dysplasia/9965_20_HE_0.czi
-/mnt/data/IKEM/colon/IBD_AI/dysplasia/5619_17_HE_A.czi

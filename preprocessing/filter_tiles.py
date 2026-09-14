@@ -80,14 +80,6 @@ def filter_slide_tiles_annotated_column(group: pd.DataFrame) -> pd.DataFrame:
     valid_clusters = sorted_group.groupby("_cluster")["annotation"].sum()
     valid_ids = valid_clusters[valid_clusters > 0].index
 
-    if len(valid_ids) > 1:
-        slide_path_str = group["path"].iloc[0]
-        if slide_path_str:
-            output_log_file = "/home/jovyan/dysplasia/ulcerative-colitis-dysplasia/multi_column_slides.txt"
-            with open(output_log_file, "a", encoding="utf-8") as f:
-                f.write(f"{slide_path_str}\n")
-            print("⚠️ Multi-column detected.")
-
     filtered = sorted_group[sorted_group["_cluster"].isin(valid_ids)]
 
     return mark_slide_origin(filtered.drop(columns=["_cluster"]))
