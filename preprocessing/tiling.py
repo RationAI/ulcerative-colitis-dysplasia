@@ -280,11 +280,11 @@ def tiling(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    qc_folder = Path(download_artifacts(config.mlflow_uris.qc))
-    tissue_folder = Path(download_artifacts(config.mlflow_uris.tissue))
-    annot_folder = Path(config.annot_path)
+    qc_folder = Path(download_artifacts(config.dataset.mlflow_uris.qc))
+    tissue_folder = Path(download_artifacts(config.dataset.mlflow_uris.tissue))
+    annot_folder = Path(config.dataset.annot_path)
 
-    for name, split_uri in config.mlflow_uris.splits.items():
+    for name, split_uri in config.dataset.mlflow_uris.splits.items():
         split = pd.read_csv(
             mlflow.artifacts.download_artifacts(split_uri), index_col="slide_id"
         )
@@ -304,8 +304,9 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             save_dir = Path(tmpdir) / name
             save_dir.mkdir(parents=True, exist_ok=True)
-            ds_slides.write_parquet(str(save_dir / "slides"))
-            ds_tiles.write_parquet(str(save_dir / "tiles"), partition_cols=["slide_id"])
+            rows = config.row_per_file
+            ds_slides.write_parquet(str(save_dir / "slides"), min_rows_per_file=rows)
+            ds_tiles.write_parquet(str(save_dir / "tiles"), min_rows_per_file=rows)
 
             mlflow.log_artifacts(tmpdir, config.mlflow_artifact_path)
 

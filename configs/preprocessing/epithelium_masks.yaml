@@ -1,0 +1,10 @@
+# @package _global_
+
+max_concurrent: 1
+output_dir: ${project_path}/epithelium_masks/raw
+mlflow_artifact_path: "epithelium_masks"
+only_missing: true
+
+metadata:
+  run_name: "Epithelium masks Creation"
+  description: "Create epithelium masks for dysplasia project"

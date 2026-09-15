@@ -1,0 +1,13 @@
+# @package _global_
+
+mlflow_artifact_path: "filtered_tiles"
+row_per_file: 50_000
+
+splits:
+  - train
+  - test_preliminary
+  - test_final
+
+metadata:
+  run_name: "Filter Tiles - ${dataset.tile_extent}px @ ${dataset.mpp}mpp"
+  description: "Filter tiles for dysplasia project"

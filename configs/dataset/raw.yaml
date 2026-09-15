@@ -1,5 +1,3 @@
-# @package _global_
-
 annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
 selected_clear_cases: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
 selected_unclear_cases: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dyspl_nejasne.xlsx

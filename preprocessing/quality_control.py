@@ -46,6 +46,11 @@ def organize_masks(output_path: Path, subdir: str, mask_prefix: str) -> None:
         file.rename(destination)
 
 
+def append_error_log(output_path: Path, message: str) -> None:
+    with open(output_path / "qc_errors.log", "a") as log_file:
+        log_file.write(message)
+
+
 async def qc_main(
     output_path: Path,
     slides: list[str],
@@ -65,10 +70,11 @@ async def qc_main(
             total=len(slides),
         ):
             if not result.success:
-                with open(output_path / "qc_errors.log", "a") as log_file:
-                    log_file.write(
-                        f"Failed to process {result.wsi_path}: {result.error}\n"
-                    )
+                await asyncio.to_thread(
+                    append_error_log,
+                    output_path,
+                    f"Failed to process {result.wsi_path}: {result.error}\n",
+                )
 
         for prefix, artifact_name in get_qc_masks(qc_parameters):
             organize_masks(output_path, artifact_name, prefix)
@@ -86,7 +92,9 @@ async def qc_main(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
-    dataset = pd.read_csv(download_artifacts(artifact_uri=config.mlflow_uris.dataset))
+    dataset = pd.read_csv(
+        download_artifacts(artifact_uri=config.dataset.mlflow_uris.dataset)
+    )
 
     output_path = Path(config.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

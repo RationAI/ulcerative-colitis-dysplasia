@@ -39,7 +39,9 @@ def process_slide(slide_path: str, level: int, output_path: Path) -> None:
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     dataset_path = Path(
-        mlflow.artifacts.download_artifacts(artifact_uri=config.mlflow_uris.dataset)
+        mlflow.artifacts.download_artifacts(
+            artifact_uri=config.dataset.mlflow_uris.dataset
+        )
     )
     dataset = pd.read_csv(dataset_path)
 
