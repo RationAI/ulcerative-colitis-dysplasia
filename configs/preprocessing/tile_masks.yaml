@@ -1,0 +1,11 @@
+# @package _global_
+
+output_dir: ${project_path}/tile_masks
+max_concurrent: 5
+level: 3
+percentage_cols: ["epithelium", "blur", "artifacts", "LG Dysplasia", "HG Dysplasia"]
+mlflow_artifact_path: "tile_masks"
+
+metadata:
+  run_name: "⊞ Tile Masks"
+  description: "Ulcerative Colitis Dysplasia Tile Masks"
