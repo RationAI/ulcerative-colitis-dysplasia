@@ -25,7 +25,7 @@ from shapely.geometry.base import BaseGeometry
 QC_BLUR_MEAN_COLUMN = "mean_coverage(Piqe)"
 QC_ARTIFACTS_MEAN_COLUMN = "mean_coverage(ResidualArtifactsAndCoverage)"
 QC_SUBFOLDERS = {"blur": "blur_per_pixel", "artifacts": "artifacts_per_pixel"}
- 
+
 
 def qc_agg(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
     qc_df = cast("pd.Series", df.loc[Path(row["path"]).stem])

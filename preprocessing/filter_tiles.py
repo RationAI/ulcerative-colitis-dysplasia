@@ -105,7 +105,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             )
 
             ds_tiles_with_path = ds_tiles.join(
-                ds_slides, join_type="inner", num_partitions=2, on=["slide_id"]
+                ds_slides, join_type="inner", num_partitions=2, on=("slide_id",)
             )
             filtered_ds_tiles = ds_tiles_with_path.groupby("slide_id").map_groups(
                 filter_slide_tiles_annotated_column, batch_format="pandas"
