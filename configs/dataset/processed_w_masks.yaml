@@ -1,10 +1,11 @@
 defaults:
+  - /dataset/processed@_here_
   - /dataset/processed_w_tissue@_here_
+  - /dataset/processed_w_epi@_here_
   - _self_
 
 mlflow_uris:
   qc: mlflow-artifacts:/111/10ec53e2cefd4e589e2d76d3373c8286/artifacts/qc_output
-  epithelium: mlflow-artifacts:/111/f07359f01bca4019bf145e899cab306e/artifacts/epithelium_masks
   splits:
       train: mlflow-artifacts:/111/e8175ecf823d403ca5b629a9bb3cf874/artifacts/train.csv
       test_preliminary: mlflow-artifacts:/111/e8175ecf823d403ca5b629a9bb3cf874/artifacts/test_preliminary.csv
