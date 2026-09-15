@@ -47,6 +47,11 @@ def organize_masks(output_path: Path, subdir: str, mask_prefix: str) -> None:
         file.rename(destination)
 
 
+def append_error_log(output_path: Path, message: str) -> None:
+    with open(output_path / "qc_errors.log", "a") as log_file:
+        log_file.write(message)
+
+
 async def qc_main(
     output_path: Path,
     slides: list[str],
@@ -66,12 +71,11 @@ async def qc_main(
             total=len(slides),
         ):
             if not result.success:
-                async with await anyio.open_file(
-                    output_path / "qc_errors.log", "a"
-                ) as log_file:
-                    await log_file.write(
-                        f"Failed to process {result.wsi_path}: {result.error}\n"
-                    )
+                await asyncio.to_thread(
+                    append_error_log,
+                    output_path,
+                    f"Failed to process {result.wsi_path}: {result.error}\n",
+                )
 
         for prefix, artifact_name in get_qc_masks(qc_parameters):
             organize_masks(output_path, artifact_name, prefix)
