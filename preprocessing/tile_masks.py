@@ -81,7 +81,8 @@ def process_slide(
         )
 
         coords = np.stack(
-            [slide_tiles["y"].to_numpy(), slide_tiles["x"].to_numpy()], axis=1,
+            [slide_tiles["y"].to_numpy(), slide_tiles["x"].to_numpy()],
+            axis=1,
         )
         data = slide_tiles[percentage_col].to_numpy(dtype=np.float32).reshape(-1, 1)
         if len(coords) > 0:
