@@ -10,7 +10,28 @@ from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
 
 
-def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
+def mark_slide_origin(group: pd.DataFrame) -> pd.DataFrame:
+    """Add a ``from_negative_slide`` flag marking tiles from purely negative slides.
+
+    A slide is treated as purely negative when its total annotation coverage is
+    zero. All tiles from such a slide keep ``from_negative_slide = True``;
+    tiles from slides that carry any annotation get ``from_negative_slide =
+    False``.
+
+    Args:
+        group: A Pandas DataFrame containing all tiles for a specific
+            ``slide_id``. Must include an ``annotation`` column.
+
+    Returns:
+        A copy of ``group`` with the new ``from_negative_slide`` boolean column.
+    """
+    from_negative_slide = float(group["annotation"].sum()) == 0.0
+    group = group.copy()
+    group["from_negative_slide"] = from_negative_slide
+    return group
+
+
+def filter_slide_tiles_annotated_column(group: pd.DataFrame) -> pd.DataFrame:
     """Filters tiles within a single slide to keep only the tissue section (column)
     containing annotations.
 
@@ -30,25 +51,20 @@ def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
        of the maximum observed gap).
     3. If annotations exist, the function identifies which cluster(s) they fall
        into.
-    4. If annotations span more than one cluster, a ValueError is raised as
-       per the "one annotated column per slide" rule.
+    4. If annotations span more than one cluster, a warning is logged.
     5. Only tiles belonging to the annotated cluster are returned.
 
     Args:
-        group (pd.DataFrame): A Pandas DataFrame containing all tiles for a
-            specific 'slide_id'. Must include 'x', 'annotation', and 'slide_id'
+        group: A Pandas DataFrame containing all tiles for a specific
+            ``slide_id``. Must include ``x``, ``annotation``, and ``slide_id``
             columns.
 
     Returns:
-        pd.DataFrame: A DataFrame containing only the tiles from the annotated
-            tissue column, with the temporary cluster ID removed.
-
-    Raises:
-        ValueError: If annotations are detected in multiple spatially distinct
-            tissue columns on the same slide.
+        A DataFrame containing only the tiles from the annotated tissue
+        column, with the temporary cluster ID removed.
     """  # noqa: D205
     if group["annotation"].sum() == 0:
-        return group
+        return mark_slide_origin(group)
 
     sorted_group = group.sort_values("x").copy()
 
@@ -66,7 +82,7 @@ def filter_slide_tiles(group: pd.DataFrame) -> pd.DataFrame:
 
     filtered = sorted_group[sorted_group["_cluster"].isin(valid_ids)]
 
-    return filtered.drop(columns=["_cluster"])
+    return mark_slide_origin(filtered.drop(columns=["_cluster"]))
 
 
 @with_cli_args(["+preprocessing=filter_tiles"])
@@ -81,8 +97,18 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             tiles = local_dir / "tiles"
 
             ds_tiles = ray.data.read_parquet(str(tiles))
-            filtered_ds_tiles = ds_tiles.groupby("slide_id").map_groups(
-                filter_slide_tiles, batch_format="pandas"
+            ds_slides = ray.data.read_parquet(str(slides))
+
+            ds_slides = ds_slides.map_batches(
+                lambda df: df[["id", "path"]].rename(columns={"id": "slide_id"}),
+                batch_format="pandas",
+            )
+
+            ds_tiles_with_path = ds_tiles.join(
+                ds_slides, join_type="inner", num_partitions=2, on=("slide_id",)
+            )
+            filtered_ds_tiles = ds_tiles_with_path.groupby("slide_id").map_groups(
+                filter_slide_tiles_annotated_column, batch_format="pandas"
             )
 
             save_dir = Path(tmpdir) / split
@@ -99,4 +125,8 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    ray.init(runtime_env={"excludes": [".git", ".venv"]})
+    try:
+        main()
+    finally:
+        ray.shutdown()
