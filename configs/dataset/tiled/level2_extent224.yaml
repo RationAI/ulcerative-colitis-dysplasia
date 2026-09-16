@@ -8,6 +8,6 @@ stride: 112
 
 mlflow_uris:
   tiling: 
-    train: mlflow-artifacts:/111/f1b49bb8a3c64e7182659cec3f323276/artifacts/tiling/train
-    test_preliminary: mlflow-artifacts:/111/f1b49bb8a3c64e7182659cec3f323276/artifacts/tiling/test_preliminary
-    test_final: mlflow-artifacts:/111/f1b49bb8a3c64e7182659cec3f323276/artifacts/tiling/test_final
+    train: mlflow-artifacts:/111/fb279f0d3c174c4990b58a48735003be/artifacts/tiling/train
+    test_preliminary: mlflow-artifacts:/111/fb279f0d3c174c4990b58a48735003be/artifacts/tiling/test_preliminary
+    test_final: mlflow-artifacts:/111/fb279f0d3c174c4990b58a48735003be/artifacts/tiling/test_final
