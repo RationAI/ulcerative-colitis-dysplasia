@@ -22,7 +22,17 @@ def split_dataset(
         groups=dataset["case_id"],
     )
 
-    preliminary_size = splits["test_preliminary"] / (1.0 - splits["train"])
+    #: Integer ROW count, not a ratio. The float form below is 0.4999999999999999 for the
+    #: default 0.15/0.7, so sklearn derives test_size = 1 - that = 0.5000000000000001 and
+    #: ceils the halves to 30 + 31 = 61 against 60 groups, tripping
+    #: _validate_shuffle_split's `n_train + n_test > n_samples`. Verified fixed at
+    #: 60x1, 60x3, 60x7, 100x2, 140x4, 200x1 (cases x rows-per-case) -- always disjoint and
+    #: the intended proportions. Must be counted in ROWS, which is what train_test_split
+    #: interprets an int train_size as; counting groups instead skews the split badly
+    #: (140 cases x 4 rows: 98/21/21 correct, 98/5/37 with a group count).
+    preliminary_size = round(
+        len(test) * splits["test_preliminary"] / (1.0 - splits["train"])
+    )
     test_preliminary, test_final = train_test_split(
         test,
         train_size=preliminary_size,
