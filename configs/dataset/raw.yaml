@@ -1,4 +1,6 @@
-annot_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia/annotations
-selected_clear_cases: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dysplazie_jasne.xlsx
-selected_unclear_cases: /mnt/data/IKEM/colon/IBD_AI/dysplasia/IBD_dyspl_nejasne.xlsx
-regex_pattern: '^\d+_\d+_HE_[0-9A-Z]+\.(czi|json)$'
+#: TCIA_HunCRC — slides are bare `NNN.mrxs`, not the IBD `NN_NN_HE_X` names.
+slides_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_v2
+tiles_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_ML-dataset/ML_dataset
+#: get_df matches against slide_path.name, so the extension is part of the string.
+#: Anchored so a stray directory entry cannot slip in and poison case_id.
+regex_pattern: '^\d{3}\.mrxs$'
