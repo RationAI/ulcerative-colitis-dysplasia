@@ -27,6 +27,29 @@ QC_ARTIFACTS_MEAN_COLUMN = "mean_coverage(ResidualArtifactsAndCoverage)"
 QC_SUBFOLDERS = {"blur": "blur_per_pixel", "artifacts": "artifacts_per_pixel"}
 
 
+def resolve_epithelium_folder(
+    epi, *, tissue_folder: Path, tissue_uri: str
+) -> Path:
+    """Resolve `config.dataset.epithelium` to a folder of `{stem}.tiff` masks.
+
+    The value is either a local directory or an `mlflow-artifacts:` URI -- whichever
+    the masks happen to be stored in. When it is empty, or identical to the tissue
+    masks' URI, the tissue masks are reused as a stand-in for the epithelium masks so
+    the `epithelium` coverage column is populated with something real; reusing the
+    already-downloaded `tissue_folder` also avoids fetching the same artifact twice.
+
+    To switch to the real episeg masks later, point `epithelium` at the episeg output
+    dir (local) or its MLflow URI -- that single value is the whole switch, same
+    `{stem}.tiff` shape, no code change.
+    """
+    value = str(epi).strip() if epi is not None else ""
+    if not value or value == tissue_uri:
+        return tissue_folder
+    if str(value).startswith("mlflow-artifacts:"):
+        return Path(download_artifacts(value))
+    return Path(value)
+
+
 def qc_agg(row: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
     qc_df = cast("pd.Series", df.loc[Path(row["path"]).stem])
 
@@ -124,7 +147,8 @@ def tile(
     annot_path = annot_folder / f"{slide_name}.json"
 
     class_generators = []
-    if row["annot_path"] == "NEGATIVE":
+    #: None when the split carries no `annot_path` column (HunCRC) -> never "NEGATIVE".
+    if row.get("annot_path") == "NEGATIVE":
         for _ in target_groups:
             class_generators.append(Polygon() for _ in coords_list)
     else:
@@ -214,15 +238,26 @@ def tiling(
     target_groups: list[str],
 ) -> tuple[ray.data.Dataset, ray.data.Dataset]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
+    #: qc_metrics.csv stores slide_name as an integer (and pandas re-parses "001"->1
+    #: on read either way), but qc_agg looks up df.loc[<string stem>] -- e.g. loc["001"]
+    #: KeyErrors. The IBD cohort's stems are non-numeric ("NN_NN_HE_X"), so it never hit
+    #: this; HunCRC's are "001".."200". Zero-pad to the string form the stems take.
+    #: The zfill(3) is a no-op for the IBD (string) index.
+    qc_df.index = qc_df.index.astype(str).str.zfill(3)
 
     paths = df["slide_path"].tolist()
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash)
-        .map(add_annot_path, fn_args=(df,))
         .map(qc_agg, fn_args=(qc_df,))  # pyright: ignore[reportArgumentType]
     )
+
+    #: IBD datasets carry an `annot_path` column (filling "NEGATIVE" for unannotated
+    #: slides). HunCRC has no such column -- every slide has a JSON -- so guard it like
+    #: `fold`/`clarity`; tile() then treats a missing value as "has annotation".
+    if "annot_path" in df.columns:
+        slides = slides.map(add_annot_path, fn_args=(df,))
 
     if "fold" in df.columns:
         slides = slides.map(add_fold, fn_args=(df,))  # pyright: ignore[reportArgumentType]
@@ -303,7 +338,11 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     qc_folder = Path(download_artifacts(config.dataset.mlflow_uris.qc))
     tissue_folder = Path(download_artifacts(config.dataset.mlflow_uris.tissue))
     annot_folder = Path(config.dataset.annot_path)
-    epithelium_folder = Path(config.dataset.epithelium)
+    epithelium_folder = resolve_epithelium_folder(
+        config.dataset.epithelium,
+        tissue_folder=tissue_folder,
+        tissue_uri=str(config.dataset.mlflow_uris.tissue),
+    )
 
     for name, split_uri in config.dataset.mlflow_uris.splits.items():
         split = pd.read_csv(
