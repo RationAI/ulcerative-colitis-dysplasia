@@ -85,6 +85,12 @@ def main() -> int:
     parser.add_argument("--smoke", action="store_true",
                         help="ONE slide (001) to a -smoke dir: wiring check before the long run")
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--tissue-folder", type=Path, default=None,
+                        help="dir of real {stem}.tiff tissue masks; default = QC "
+                             "artifacts_per_pixel stand-in (residual-artifact mask, NOT tissue -- "
+                             "only for wiring checks)")
+    parser.add_argument("--epi-folder", type=Path, default=None,
+                        help="dir of {stem}.tiff epithelium masks; default = tissue folder")
     args = parser.parse_args()
 
     out_dir = Path(args.out) if args.out else (
@@ -120,12 +126,22 @@ def main() -> int:
     if not paths:
         raise SystemExit("no slides to tile")
 
-    #: Coverage mask as the tissue stand-in (see module docstring). Blur mask from its
-    #: own subdir; both exist for every QC-complete slide.
-    tissue_folder = QC_DIR / "artifacts_per_pixel"
-    n_tissue = len(list(tissue_folder.glob("*.tiff")))
+    #: Tissue gate folder. Default is the QC per-pixel mask stand-in (see module
+    #: docstring) -- but that is the RESIDUAL-ARTIFACT mask, sparse by design, so any
+    #: run that should cover real tissue MUST pass --tissue-folder with the real masks.
+    tissue_folder = args.tissue_folder or (QC_DIR / "artifacts_per_pixel")
+    epithelium_folder = args.epi_folder or tissue_folder
+    have_tissue = [s for s in want if (tissue_folder / f"{s}.tiff").exists()]
+    if tissue_folder == QC_DIR / "artifacts_per_pixel" and not args.tissue_folder:
+        print(f"WARNING: using the QC artifact mask as the tissue stand-in "
+              f"(not tissue; expect near-zero tiles). Pass --tissue-folder for real tiling.")
+    if len(have_tissue) != len(want):
+        missing = sorted(set(want) - set(have_tissue))
+        raise SystemExit(f"tissue masks missing in {tissue_folder} for: {missing}")
     print(f"tiling {len(paths)} slides -> {out_dir}")
-    print(f"qc rows: {len(done)}, coverage-mask stand-in present: {n_tissue}")
+    print(f"qc rows: {len(done)}, tissue masks: {tissue_folder} "
+          f"({len(have_tissue)}/{len(want)} present)")
+    print(f"epithelium masks: {epithelium_folder}")
     print(f"geometry: {TILE_EXTENT}px @ {MPP} mpp, stride {STRIDE}, threshold {TISSUE_THRESHOLD}")
     print(f"started: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -138,7 +154,7 @@ def main() -> int:
             df,
             qc_folder=QC_DIR,
             tissue_folder=tissue_folder,
-            epithelium_folder=tissue_folder,
+            epithelium_folder=epithelium_folder,
             annot_folder=ANNOT_DIR,
             tile_extent=TILE_EXTENT,
             stride=STRIDE,
@@ -199,7 +215,8 @@ def main() -> int:
                 "mpp": MPP, "tile_extent": TILE_EXTENT, "stride": STRIDE,
                 "tissue_threshold": TISSUE_THRESHOLD,
                 "target_groups": TARGET_GROUPS,
-                "tissue_standin": str(tissue_folder),
+                "tissue_folder": str(tissue_folder),
+                "epithelium_folder": str(epithelium_folder),
             },
             "qc_rows_at_start": len(done),
             "slides_skipped": skipped,

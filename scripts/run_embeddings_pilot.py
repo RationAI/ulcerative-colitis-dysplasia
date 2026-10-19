@@ -1,0 +1,208 @@
+"""Tile-embedding pilot for the 3-slide HunCRC tiling, against the model service.
+
+    uv run python scripts/run_embeddings_pilot.py --probe        # one-tile smoke test
+    uv run python scripts/run_embeddings_pilot.py --crop-only    # verify crop path (svc down)
+    uv run python scripts/run_embeddings_pilot.py --limit 50     # 50 tiles/slide
+    uv run python scripts/run_embeddings_pilot.py                # all 36,170 tiles
+
+This is the 3-slide local analogue of the stage `preprocessing/embeddings.py` and
+reuses that module's code (`embed_image`, `EmbedTiles`, `crop_tiles`,
+`add_embedding_column`, `write_per_slide`) -- the same pilot->stage relationship as
+run_tiling_pilot -> preprocessing.tiling. The ONE delta is the input: the stage reads
+HunCRC tiling from MLflow URIs; here there is no HunCRC tiling in MLflow, so it reads
+the local output of scripts/run_tiling_pilot.py and joins slides onto tiles the same way
+the stage does (path, level, tile_extent).
+
+Readiness: prov-gigapath is scaled-to-zero today (same as episeg), so the real run waits
+on the huncrc reroll. `--probe` is the readiness check -- it crops one real tile and runs
+it end-to-end, replacing the "is the model up?" route-table guess with "did a vector come
+back". `--crop-only` proves the tiling->crop half with the service down.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+#: Same scripts/preprocessing shadow as run_tiling_pilot.py: prepend the repo root so we
+#: bind the real `preprocessing/embeddings.py`, not scripts/preprocessing/embeddings.py.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from preprocessing.embeddings import (  # noqa: E402
+    add_embedding_column,
+    crop_tiles,
+    embed_image,
+    write_per_slide,
+)
+
+#: Target the HUNCRC rerolled deployment, not IBD's rayservice-model-fix-serve-svc.
+DEFAULT_SVC = "http://rayservice-model-huncrc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000"
+#: IBD TRAINED on prov-gigapath (feat/modeling: embedd_model: prov-gigapath), even though
+#: the preprocessing config default says virchow2. Keep the trained model.
+DEFAULT_MODEL = "prov-gigapath"
+TILING_PILOT = Path("/mnt/projects/huncrc_dysplasia/tiling_pilot")
+OUT_DIR = Path("/mnt/projects/huncrc_dysplasia/embeddings_pilot")
+
+
+def read_tiling(tiling_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    slides = pd.read_parquet(tiling_dir / "slides")
+    tiles = pd.read_parquet(tiling_dir / "tiles")
+    req = {"id", "path", "level", "tile_extent_x", "tile_extent_y"}
+    if missing := (req - set(slides.columns)):
+        sys.stderr.write(f"slides parquet missing {missing}; got {list(slides.columns)}\n")
+        raise SystemExit(1)
+    if not {"slide_id", "x", "y"}.issubset(tiles.columns):
+        sys.stderr.write(f"tiles parquet missing geometry; got {list(tiles.columns)}\n")
+        raise SystemExit(1)
+    return slides, tiles
+
+
+def enrich(slides: pd.DataFrame, tiles: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
+    """Join slides onto tiles (path, level, tile_extent), exactly as the stage does."""
+    slide_info = slides.set_index("id")[["path", "level", "tile_extent_x", "tile_extent_y"]]
+    tiles_enriched = tiles.join(slide_info, on="slide_id")
+    id_to_stem = dict(zip(slides["id"], [Path(p).stem for p in slides["path"]]))
+    return tiles_enriched, id_to_stem
+
+
+def probe(svc: str, model: str, tiling_dir: Path) -> int:
+    """Crop ONE real tile and run it through the service end-to-end.
+
+    The route table lists deployments with no replica (episeg, prov-gigapath today), so
+    "is the model up" is answered only by getting a vector back. A dead replica 5xxs or
+    times out here, it does not hang forever.
+    """
+    import httpx
+
+    from ratiopath.openslide import OpenSlide
+
+    slides, tiles = read_tiling(tiling_dir)
+    first = slides.iloc[0]
+    stem = Path(first["path"]).stem
+    t = tiles[tiles["slide_id"] == first["id"]].iloc[0]
+
+    with OpenSlide(first["path"]) as slide:
+        image = slide.read_tile(int(t["x"]), int(t["y"]),
+                                int(first["tile_extent_x"]), int(first["tile_extent_y"]),
+                                int(first["level"]), background=255)
+    print(f"probe tile: {stem} at ({t['x']},{t['y']}) level {first['level']}, "
+          f"shape {image.shape} {image.dtype}")
+
+    import asyncio
+
+    async def _call() -> np.ndarray:
+        async with httpx.AsyncClient(base_url=svc.rstrip("/")) as client:
+            # Short timeout: a dead/scaled-to-zero replica holds the connection open
+            # with no response, so the readiness check must fail fast, not wait 200 s.
+            return await embed_image(client, model, image, timeout=20.0)
+
+    started = time.time()
+    try:
+        vec = asyncio.run(_call())
+    except httpx.TimeoutException:
+        sys.stderr.write(
+            f"  no response within 20s -- replica is down (scaled to zero or "
+            f"still UNHEALTHY). Re-run --probe once the reroll is Active.\n"
+        )
+        return 1
+    except httpx.HTTPStatusError as e:
+        sys.stderr.write(
+            f"  service http {e.response.status_code}: {e.response.text[:200]!r}\n"
+            "  dead replica (scaled to zero or UNHEALTHY) or bad model name.\n"
+        )
+        return 1
+    except httpx.HTTPError as e:
+        sys.stderr.write(f"  no response from {svc}: {e}\n")
+        return 1
+    dt = time.time() - started
+    print(f"  OK: {model} returned a {vec.shape} {vec.dtype} vector in {dt:.1f}s")
+    print(f"  first 5: {vec[:5].tolist()}  norm={float((vec**2).sum()**0.5):.3f}")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--tiling-dir", type=Path, default=TILING_PILOT)
+    ap.add_argument("--out", type=Path, default=OUT_DIR)
+    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--svc", default=DEFAULT_SVC,
+                    help="model service base URL (no trailing slash)")
+    ap.add_argument("--concurrency", type=int, default=32,
+                    help="httpx connections per actor (IBD default 512; pilot keeps it low)")
+    ap.add_argument("--block-size", type=int, default=128,
+                    help="rows per Ray Data block before tiling the crops")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="only the first N tiles per slide (0 = all)")
+    ap.add_argument("--probe", action="store_true", help="one-tile smoke test, no batch")
+    ap.add_argument("--crop-only", action="store_true",
+                    help="crop tiles through the Ray pipeline but skip the model call")
+    args = ap.parse_args()
+
+    if not args.tiling_dir.is_dir():
+        sys.stderr.write(f"tiling pilot {args.tiling_dir} not found; "
+                         "run scripts/run_tiling_pilot.py first.\n")
+        return 1
+
+    if args.probe:
+        return probe(args.svc, args.model, args.tiling_dir)
+
+    slides, tiles = read_tiling(args.tiling_dir)
+    if args.limit:
+        tiles = (tiles.groupby("slide_id", group_keys=False)
+                 .head(args.limit).reset_index(drop=True))
+        print(f"   --limit {args.limit}: {len(tiles)} tiles total")
+
+    tiles_enriched, id_to_stem = enrich(slides, tiles)
+    print(f"tiles: {len(tiles_enriched)}  slides: {slides['path'].nunique()}  "
+          f"model: {args.model}  svc: {args.svc}")
+
+    model_dir = args.out / args.model
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    import ray
+
+    ctx = ray.data.DataContext.get_current()
+    ctx.enable_rich_progress_bars = True
+    ctx.use_ray_tqdm = False
+
+    with ray.init(
+        num_cpus=max(args.concurrency, 4),
+        include_dashboard=False,
+        configure_logging=False,
+        runtime_env={"excludes": [".git", ".venv"]},
+    ):
+        ds = crop_tiles(tiles_enriched, args.block_size)
+        started = time.time()
+
+        if args.crop_only:
+            n_cropped = ds.count()
+            counts = (ds.drop_columns(["tile"]).to_pandas()
+                      .assign(stem=lambda d: d["slide_id"].map(id_to_stem))
+                      .groupby("stem").size())
+            print(f"\ncropped {n_cropped} tiles in {time.time() - started:.0f}s (no model call)")
+            for stem in sorted(counts.index):
+                print(f"  {stem}: {int(counts[stem])} tiles cropped OK")
+            return 0
+
+        ds = add_embedding_column(ds, args.model, args.svc, args.concurrency)
+        out_df = ds.to_pandas()
+        # write_per_slide's internal .assign(stem=...) does not mutate out_df,
+        # so the summary loop below needs its own stem column.
+        out_df = out_df.assign(stem=out_df["slide_id"].map(id_to_stem))
+        write_per_slide(out_df, id_to_stem, model_dir)
+
+    total = time.time() - started
+    print(f"\nfinished in {total:.0f}s")
+    for stem, grp in sorted(out_df.groupby("stem")):
+        emb = pd.read_parquet(model_dir / f"{stem}.parquet", columns=["x", "y", "embedding"])
+        dim = len(emb["embedding"].iloc[0])
+        print(f"  {stem}: {len(grp)} tiles, dim {dim} -> {model_dir / (stem + '.parquet')}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
