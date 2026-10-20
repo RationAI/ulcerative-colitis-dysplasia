@@ -1,6 +1,24 @@
 # @package _global_
 
-max_concurrent: 1
+#: 4 in-flight requests, not 1: the 200-slide cohort at the huncrc service's real
+#: per-slide time (~30+ min, incl. the first request's TensorRT cold start) would be
+#: 4+ days serial. The GPU processes the slides queue-side; concurrency bounds client
+#: connections, not GPU work. Raise deliberately with the service owner, do not lower.
+max_concurrent: 4
+#: Served by the HUNCRC model RayService, being rerolled for this cohort -- NOT the
+#: SDK default (AsyncClient -> rayservice-model-serve-svc, the IBD deployment, which
+#: has no hunCRC replicas). preprocessing/epithelium_masks.py passes this to
+#: AsyncClient(models_base_url=svc), so the stage targets the right deployment.
+svc: "http://rayservice-model-huncrc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000"
+#: episeg-1 was confirmed present on the huncrc route table before the reroll; the
+#: recipe commit (c84d605) redeploys the same model.
+model: "episeg-1"
+#: Bounds BOTH the client connection (AsyncClient timeout) and each heatmap request
+#: (passed as its timeout= kwarg; the SDK's built-in default is 1000 s). The first
+#: request after a reroll cold-starts the GPU + rebuilds the TensorRT engine in
+#: ~1544 s measured, so 1000 s aborts the very first slide; 18000 s (5 h) matches the
+#: QC job's request_timeout and has headroom.
+request_timeout: 18000
 output_dir: ${project_path}/epithelium_masks/raw
 mlflow_artifact_path: "epithelium_masks"
 only_missing: true
