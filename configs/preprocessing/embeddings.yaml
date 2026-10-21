@@ -1,0 +1,22 @@
+# @package _global_
+
+#: IBD trained on prov-gigapath (feat/modeling embedd_model: prov-gigapath) even though
+#: the IBD preprocessing default said virchow2. Keep the trained model.
+model: prov-gigapath
+#: The HUNCRC rerolled deployment, not IBD's rayservice-model-fix-serve-svc.
+svc: http://rayservice-model-huncrc-serve-svc.rationai-jobs-ns.svc.cluster.local:8000
+#: Output is consumed by the training dataset, which globs {project_path}/embeddings/
+#: {model}/*.parquet by slide stem (feat/modeling DysplasiaEmbeddingsDataset). So the
+#: stage writes per-slide parquets directly here, named {stem}.parquet.
+output_dir: ${project_path}/embeddings
+mlflow_artifact_path: embeddings
+concurrency: 512
+block_size: 128
+
+metadata:
+  run_name: "🔢 Embeddings - ${model}"
+  description: Tile embeddings using model ${model}
+  hyperparams:
+    model: ${model}
+    concurrency: ${concurrency}
+    block_size: ${block_size}
