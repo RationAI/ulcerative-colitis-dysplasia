@@ -22,10 +22,12 @@
 #: PROJECTS (merged tiling in, mask TIFFs out). No MLflow: the masks live on
 #: the share; upload later if the xOpat/report path needs them as artifacts.
 #:
-#: SIZING: process_slide is not memory-decorated in the repo stage; the pilot
-#: reserves 4Gi per task (it was 3-4 GiB/slide in the 3-slide run: slide open +
-#: five level-2 float32 MaskBuilder accumulators, ~1.2 GB each). --workers 2
-#: bounds that to ~8-10 GiB in flight within 16Gi, the rest is Ray + driver.
+#: SIZING: the pilot reserves 12Gi per task and --workers 2 runs two slides at
+#: once; the first submit (16Gi) had Ray killing workers at 95% of the pod
+#: memory (15.23GB / 16.00GB, top user ray::process_slide at 10.9GB) and
+#: retrying forever without writing a single TIFF. Four level-2 float32
+#: MaskBuilder accumulators plus the OpenSlide handle are ~11 GB per slide, so
+#: 2 x 11 + driver + Ray overhead needs ~30Gi -- 48Gi carries the peaks.
 #:
 #: RESUME: yes -- an existing {out}/{col}/{stem}.tiff is accepted as done for
 #: that slide+column, so a resubmission after a crash continues where it left
@@ -45,7 +47,7 @@ submit_job(
     image="cerit.io/rationai/base:2.0.6",
     public=True,
     cpu=4,
-    memory="16Gi",
+    memory="48Gi",
     script=[
         f"git clone --branch {BRANCH} "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",

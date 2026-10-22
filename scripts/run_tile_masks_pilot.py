@@ -65,9 +65,11 @@ PERCENTAGE_COLS = ["epithelium", "blur", "artifacts",
 LEVEL = 2
 #: Memory reservation per task. process_slide is NOT decorated with a memory option in
 #: the repo (preprocessing/tile_masks.py:20-27), but it opens the slide (~545k x 588k
-#: pixels via OpenSlide) and builds multiple mask accumulator arrays in memory. Use
-#: the same generous reservation as the tissue-mask stage.
-MEMORY_PER_TASK = 4 * 1024**3
+#: pixels via OpenSlide) and builds multiple mask accumulator arrays in memory.
+#: Measured on the full-cohort job (2026-10-22, tiling_186_merged): a single
+#: ray::process_slide peaked at 10.9 GiB, so the old 4 GiB reservation let two of them
+#: run inside a 16Gi pod and Ray's OOM monitor killed both at 15.23GB / 16.00GB.
+MEMORY_PER_TASK = 12 * 1024**3
 
 
 def main() -> int:
