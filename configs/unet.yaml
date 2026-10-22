@@ -1,0 +1,76 @@
+#: Dysplasia U-Net experiment (tile-level segmentation of LGD/HGD regions).
+#: INDEPENDENT of the embedding-based main pipeline (configs/ml.yaml): own
+#: entrypoint (python -m ml.unet.train), own output dir; shared read-only:
+#: base.yaml, ml/data.DataModule, the rationai.mlkit Trainer.
+defaults:
+  - base
+  - _self_
+
+seed: ${random_seed:}
+mode: fit
+checkpoint: null
+#: Checkpoints + demo PNG land here, on the project share (job-writable).
+output_dir: ${project_path}/unet_dysplasia
+
+metadata:
+  run_name: "🧬 U-Net dysplasia segmentation"
+  description: Tile-level U-Net segmentation of LGD/HGD regions on TCIA_HunCRC crops
+
+trainer:
+  max_epochs: 10
+  accelerator: auto
+  devices: auto
+  gradient_clip_val: 1.0
+  log_every_n_steps: 10
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      dirpath: ${output_dir}
+      filename: "unet-dysplasia-{epoch:02d}"
+      monitor: validation/dice
+      mode: max
+      save_last: true
+
+#: DataModule kwargs (ml/data/data_module.py): batch_size, num_workers, then one
+#: key per dataset (train/val) -- datasets are instantiated by the DataModule.
+data:
+  batch_size: 16
+  num_workers: 8
+  train:
+    _target_: ml.unet.dataset.DysplasiaPatchDataset
+    tiling_dir: ${project_path}/tiling_186_merged
+    masks_dir: ${project_path}/annotation_masks
+    patch_size: 512
+    level: 2
+    mask_level: 5
+    classes: [lowgrade_dysplasia, highgrade_dysplasia]
+    #: ~4k annotated + ~4k unannotated patches/epoch -> a couple of hours on one
+    #: A100. null = all annotated tiles.
+    max_pos_per_epoch: 4000
+    neg_pos_ratio: 1.0
+    split: 0
+    val_fraction: 0.1
+    seed: 0
+    augment: true
+  val:
+    _target_: ml.unet.dataset.DysplasiaPatchDataset
+    tiling_dir: ${project_path}/tiling_186_merged
+    masks_dir: ${project_path}/annotation_masks
+    patch_size: 512
+    level: 2
+    mask_level: 5
+    classes: [lowgrade_dysplasia, highgrade_dysplasia]
+    #: Validation stays small and fixed: 1k pos + 500 neg patches.
+    max_pos_per_epoch: 1000
+    neg_pos_ratio: 0.5
+    split: 1
+    val_fraction: 0.1
+    seed: 0
+    augment: false
+
+model:
+  _target_: ml.unet.model.UNetSeg
+  base_channels: 32
+  in_channels: 3
+  dice_weight: 0.5
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
