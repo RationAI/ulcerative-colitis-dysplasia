@@ -158,6 +158,9 @@ def main() -> int:
 
     with ray.init(
         num_cpus=max(args.workers, 1),
+        #: Ray would otherwise take ~30% of the pod cgroup for the object store,
+        #: and the OOM monitor counts it against the same limit as the workers.
+        object_store_memory=2 * 1024**3,
         include_dashboard=False,
         configure_logging=False,
         runtime_env={"excludes": [".git", ".venv"]},

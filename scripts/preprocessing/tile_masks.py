@@ -22,12 +22,14 @@
 #: PROJECTS (merged tiling in, mask TIFFs out). No MLflow: the masks live on
 #: the share; upload later if the xOpat/report path needs them as artifacts.
 #:
-#: SIZING: the pilot reserves 12Gi per task and --workers 2 runs two slides at
-#: once; the first submit (16Gi) had Ray killing workers at 95% of the pod
-#: memory (15.23GB / 16.00GB, top user ray::process_slide at 10.9GB) and
-#: retrying forever without writing a single TIFF. Four level-2 float32
-#: MaskBuilder accumulators plus the OpenSlide handle are ~11 GB per slide, so
-#: 2 x 11 + driver + Ray overhead needs ~30Gi -- 48Gi carries the peaks.
+#: SIZING: memory is dominated by the level-2 mask accumulators, one float32
+#: array per column per slide, so it scales with the SLIDE AREA, not with the
+#: tile count. Measured on tiling_186_merged (2026-10-22): 16Gi pods died at
+#: 15.23GB with one process_slide at 10.9GB, and 48Gi pods died at 45.70GB with
+#: one process_slide at 34.4GB -- i.e. the largest slides need ~35 GB in a single
+#: task, so no 2-worker pod can hold two of them. Hence --workers 1 and a 96Gi
+#: pod: one slide at a time with ~3x headroom, and Ray's object store pinned to
+#: 2Gi in the pilot so it does not eat a third of the cgroup.
 #:
 #: RESUME: yes -- an existing {out}/{col}/{stem}.tiff is accepted as done for
 #: that slide+column, so a resubmission after a crash continues where it left
@@ -47,14 +49,14 @@ submit_job(
     image="cerit.io/rationai/base:2.0.6",
     public=True,
     cpu=4,
-    memory="48Gi",
+    memory="96Gi",
     script=[
         f"git clone --branch {BRANCH} "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
         "cd workdir",
         "uv sync --frozen",
         "uv run python scripts/run_tile_masks_pilot.py "
-        f"--tiling-dir {TILING_DIR} --out {OUT_DIR} --workers 2",
+        f"--tiling-dir {TILING_DIR} --out {OUT_DIR} --workers 1",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )
