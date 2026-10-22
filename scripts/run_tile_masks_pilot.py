@@ -58,11 +58,14 @@ OUT_DIR = Path("/mnt/projects/huncrc_dysplasia/tile_masks_pilot")
 #: --percentage-cols if you re-tile with different target_groups.
 PERCENTAGE_COLS = ["epithelium", "blur", "artifacts",
                    "lowgrade_dysplasia", "highgrade_dysplasia"]
-#: Output pyramid level -- **2, not the yaml's 3.** Level 3 upsamples the tiling
-#: (which is at level 2, 0.4851 mpp): the mask becomes ~68k x 73k px and its float32
-#: MaskBuilder accumulator is ~20 GB, OOM-ing under the 32 GB pod cap.
-#: Level 2 matches the tiling 1:1 -> mask ~17k x 18k px, accumulator ~1.2 GB.
-LEVEL = 2
+#: Output pyramid level -- **3.** MaskBuilder holds the whole mask as one float32
+#: accumulator sized to the slide extent, so memory is area-driven: level 2 is
+#: 147200 x 136384 = 20 Gpx = **80 GB** per column, which killed process_slide at
+#: 88.77GB inside a 96Gi pod (2026-10-22); level 3 is 68192 x 73600 = 5 Gpx =
+#: 20 GB per column, the same level the repo stage's config uses. Cost: the mask
+#: is at half the tiling's level-2 pixel grid (a tile covers 112 px, not 224) --
+#: percentages per tile are unchanged, only the raster resolution is halved.
+LEVEL = 3
 #: Memory reservation per task. process_slide is NOT decorated with a memory option in
 #: the repo (preprocessing/tile_masks.py:20-27), but it opens the slide (~545k x 588k
 #: pixels via OpenSlide) and builds multiple mask accumulator arrays in memory.

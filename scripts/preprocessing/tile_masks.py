@@ -22,14 +22,13 @@
 #: PROJECTS (merged tiling in, mask TIFFs out). No MLflow: the masks live on
 #: the share; upload later if the xOpat/report path needs them as artifacts.
 #:
-#: SIZING: memory is dominated by the level-2 mask accumulators, one float32
-#: array per column per slide, so it scales with the SLIDE AREA, not with the
-#: tile count. Measured on tiling_186_merged (2026-10-22): 16Gi pods died at
-#: 15.23GB with one process_slide at 10.9GB, and 48Gi pods died at 45.70GB with
-#: one process_slide at 34.4GB -- i.e. the largest slides need ~35 GB in a single
-#: task, so no 2-worker pod can hold two of them. Hence --workers 1 and a 96Gi
-#: pod: one slide at a time with ~3x headroom, and Ray's object store pinned to
-#: 2Gi in the pilot so it does not eat a third of the cgroup.
+#: SIZING: memory is the level-N mask accumulator, one float32 array per column
+#: sized to the whole slide extent, so it scales with SLIDE AREA. At level 2
+#: (147200 x 136384 = 20 Gpx) that is ~80 GB per column: a single process_slide
+#: reached 88.77GB and died at 91.36GB / 96.00GB even with --workers 1. The
+#: pilot therefore renders at LEVEL 3 (68192 x 73600 = 5 Gpx, ~20 GB/column,
+#: same level as the repo stage's config), so a 96Gi pod with --workers 1 has
+#: room for the biggest slides plus the pyvips copy.
 #:
 #: RESUME: yes -- an existing {out}/{col}/{stem}.tiff is accepted as done for
 #: that slide+column, so a resubmission after a crash continues where it left
