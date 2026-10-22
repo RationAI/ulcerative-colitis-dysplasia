@@ -21,7 +21,8 @@
 #: joins it onto the tiling tiles on (slide_id, x, y).
 #:
 #: SIZING: 4 workers x ~300 MB (uint8 level-2 page + float64 integral image
-#: ~160 MB each), so cpu=4/8Gi has 5x headroom.
+#: ~160 MB each) underestimated the peak -- the first submit (cpu=4/8Gi) was
+#: OOMKilled (exit 137) after ~40 min, so 32Gi carries the merge/sort.
 #:
 #: Output: /mnt/projects/huncrc_dysplasia/epithelium_column_186.parquet with
 #: columns (slide_id, x, y, epithelium) -- 3,928,931 rows, one per v3 tile.
@@ -39,7 +40,7 @@ submit_job(
     image="cerit.io/rationai/base:2.0.6",
     public=True,
     cpu=4,
-    memory="8Gi",
+    memory="32Gi",
     script=[
         f"git clone --branch {BRANCH} "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
