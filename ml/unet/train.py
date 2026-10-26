@@ -45,10 +45,14 @@ def demo_grid(net, val_ds, out_path: Path, n: int = 4) -> None:
             img, target, _valid = val_ds[i]
             pred = (torch.sigmoid(net(img[None])) > 0.5).float()
             for j, (arr, title) in enumerate(
-                ((img, "input"), (target, "target"), (pred, "pred"))
+                (
+                    (img.permute(1, 2, 0), "input"),
+                    (target.squeeze(0), "target"),
+                    (pred.squeeze(1).squeeze(0), "pred"),
+                )
             ):
                 ax = axes[i][j]
-                ax.imshow(arr.squeeze(0).numpy())
+                ax.imshow(arr.numpy())
                 ax.set_title(f"{i + 1}: {title}", fontsize=8)
                 ax.axis("off")
     fig.suptitle("dysplasia U-Net -- val demo (input | target | prediction)")
