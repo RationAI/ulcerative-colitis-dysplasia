@@ -315,7 +315,7 @@ def main() -> int:
         pending: dict[str, list[pd.DataFrame]] = {}
         got: dict[str, int] = {}
         written = len(done)
-        for batch in ds.iter_batches(batch_size=args.flush_rows):
+        for batch in ds.iter_batches(batch_size=args.flush_rows, batch_format="pandas"):
             batch = batch.assign(stem=batch["slide_id"].map(id_to_stem))
             for stem, grp in batch.groupby("stem", sort=False):
                 pending.setdefault(stem, []).append(grp)
