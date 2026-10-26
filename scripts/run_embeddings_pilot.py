@@ -287,10 +287,10 @@ def main() -> int:
         #: pod starve the actors and every request ends in httpx.PoolTimeout.
         num_cpus=pod_cpu_limit(),
         #: Pin the object store: it lives in /dev/shm, whose pages count against the pod's
-        #: cgroup, and Ray's OOM monitor kills off the cgroup limit -- the default share
-        #: (43% of 21 GiB here) plus the driver's buffers is what killed the first two
-        #: 32Gi attempts. 2 GiB is enough for the 128-row blocks in flight.
-        object_store_memory=2 * 1024**3,
+        #: cgroup, and Ray's OOM monitor kills off the cgroup limit. 2 GiB was too small
+        #: (the driver lags the actors and the store spilled 2,329 MiB before the run
+        #: died); 8 GiB leaves the 64Gi pod ample headroom and keeps blocks in memory.
+        object_store_memory=8 * 1024**3,
         include_dashboard=False,
         configure_logging=False,
         runtime_env={"excludes": [".git", ".venv"]},
