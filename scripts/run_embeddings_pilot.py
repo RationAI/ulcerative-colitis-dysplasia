@@ -75,6 +75,33 @@ def expected_counts(tiles: pd.DataFrame, id_to_stem: dict[str, str]) -> dict[str
     return {id_to_stem[sid]: int(n) for sid, n in per_slide.items()}
 
 
+def pod_cpu_limit() -> int:
+    """CPUs this pod may actually use, from the cgroup quota.
+
+    `ray.init(num_cpus=...)` must not be handed the connection count: a kuba pod with
+    limits.cpu 8 was told it had 32, so Ray scheduled 32 crop tasks onto 8 throttled
+    cores, the async embedding actors never got scheduled, and every in-flight request
+    sat on a connection until httpx raised PoolTimeout with 0 tiles embedded.
+    """
+    for quota_path, period_path in (
+        ("/sys/fs/cgroup/cpu.max", None),                      # cgroup v2: "N 100000"
+        ("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
+    ):
+        try:
+            text = Path(quota_path).read_text().split()
+            if period_path is None:
+                quota, period = text[0], text[1]
+                if quota == "max":
+                    continue
+                return max(1, round(int(quota) / int(period)))
+            quota = int(text[0])
+            if quota > 0:
+                return max(1, round(quota / int(Path(period_path).read_text())))
+        except (OSError, ValueError, IndexError):
+            continue
+    return os.cpu_count() or 1
+
+
 def already_done(model_dir: Path, counts: dict[str, int]) -> set[str]:
     """Slides whose parquet exists AND holds the full tile count -> resume skips them.
 
@@ -255,7 +282,9 @@ def main() -> int:
     ctx.use_ray_tqdm = False
 
     with ray.init(
-        num_cpus=max(args.concurrency, 4),
+        #: The pod's real CPU quota, NOT the connection count: 32 crop tasks on an 8-CPU
+        #: pod starve the actors and every request ends in httpx.PoolTimeout.
+        num_cpus=pod_cpu_limit(),
         #: Pin the object store: it lives in /dev/shm, whose pages count against the pod's
         #: cgroup, and Ray's OOM monitor kills off the cgroup limit -- the default share
         #: (43% of 21 GiB here) plus the driver's buffers is what killed the first two
