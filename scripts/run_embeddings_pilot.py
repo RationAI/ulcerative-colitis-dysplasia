@@ -156,7 +156,10 @@ def probe(svc: str, model: str, tiling_dir: Path) -> int:
     import asyncio
 
     async def _call() -> np.ndarray:
-        async with httpx.AsyncClient(base_url=svc.rstrip("/")) as client:
+        #: follow_redirects is LOAD-BEARING here too: the router answers the bare model
+        #: route with a 307 to its trailing-slash form, and httpx does not follow it by
+        #: default -- without this the probe reports "dead replica" for a healthy model.
+        async with httpx.AsyncClient(base_url=svc.rstrip("/"), follow_redirects=True) as client:
             # Short timeout: a dead/scaled-to-zero replica holds the connection open
             # with no response, so the readiness check must fail fast, not wait 200 s.
             return await embed_image(client, model, image, timeout=20.0)
@@ -222,7 +225,7 @@ def main() -> int:
 
     tiles_enriched, id_to_stem = enrich(slides, tiles)
     print(f"tiles: {len(tiles_enriched)}  slides: {slides['path'].nunique()}  "
-          f"model: {args.model}  svc: {args.svc}")
+          f"model: {args.model}  svc: {args.svc}", flush=True)
 
     model_dir = args.out / args.model
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -253,6 +256,11 @@ def main() -> int:
 
     with ray.init(
         num_cpus=max(args.concurrency, 4),
+        #: Pin the object store: it lives in /dev/shm, whose pages count against the pod's
+        #: cgroup, and Ray's OOM monitor kills off the cgroup limit -- the default share
+        #: (43% of 21 GiB here) plus the driver's buffers is what killed the first two
+        #: 32Gi attempts. 2 GiB is enough for the 128-row blocks in flight.
+        object_store_memory=2 * 1024**3,
         include_dashboard=False,
         configure_logging=False,
         runtime_env={"excludes": [".git", ".venv"]},
