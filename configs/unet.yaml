@@ -10,14 +10,18 @@ seed: ${random_seed:}
 mode: fit
 checkpoint: null
 #: Checkpoints + demo PNG land here, on the project share (job-writable).
-output_dir: ${project_path}/unet_dysplasia
+#: _v2: the 10-epoch run's checkpoints still occupy the plain dir; a fresh
+#: dir keeps each run's checkpoint set unambiguous.
+output_dir: ${project_path}/unet_dysplasia_v2
 
 metadata:
   run_name: "🧬 U-Net dysplasia segmentation"
   description: Tile-level U-Net segmentation of LGD/HGD regions on TCIA_HunCRC crops
 
 trainer:
-  max_epochs: 10
+  #: The 10-epoch run peaked at epoch 6 (dice 0.784) and collapsed by 8;
+  #: give the cosine schedule room and stop when it stops improving.
+  max_epochs: 20
   accelerator: auto
   devices: auto
   gradient_clip_val: 1.0
@@ -29,11 +33,16 @@ trainer:
       monitor: validation/dice
       mode: max
       save_last: true
+    - _target_: lightning.pytorch.callbacks.EarlyStopping
+      monitor: validation/dice
+      mode: max
+      patience: 5
 
 #: DataModule kwargs (ml/data/data_module.py): batch_size, num_workers, then one
 #: key per dataset (train/val) -- datasets are instantiated by the DataModule.
 data:
-  batch_size: 16
+  #: 16 left the A100/A40 underutilized at 512px; 32 halves the step count.
+  batch_size: 32
   num_workers: 8
   train:
     _target_: ml.unet.dataset.DysplasiaPatchDataset
