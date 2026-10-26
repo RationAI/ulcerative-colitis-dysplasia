@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 #: Same scripts/preprocessing shadow as run_tiling_pilot.py: prepend the repo root so we
 #: bind the real `preprocessing/embeddings.py`, not scripts/preprocessing/embeddings.py.
@@ -36,7 +37,6 @@ from preprocessing.embeddings import (  # noqa: E402
     add_embedding_column,
     crop_tiles,
     embed_image,
-    write_per_slide,
 )
 
 #: Target the HUNCRC rerolled deployment, not IBD's rayservice-model-fix-serve-svc.
@@ -67,6 +67,67 @@ def enrich(slides: pd.DataFrame, tiles: pd.DataFrame) -> tuple[pd.DataFrame, dic
     tiles_enriched = tiles.join(slide_info, on="slide_id")
     id_to_stem = dict(zip(slides["id"], [Path(p).stem for p in slides["path"]]))
     return tiles_enriched, id_to_stem
+
+
+def expected_counts(tiles: pd.DataFrame, id_to_stem: dict[str, str]) -> dict[str, int]:
+    """Tiles per slide stem -- the completion criterion for a flushed parquet."""
+    per_slide = tiles.groupby("slide_id").size()
+    return {id_to_stem[sid]: int(n) for sid, n in per_slide.items()}
+
+
+def already_done(model_dir: Path, counts: dict[str, int]) -> set[str]:
+    """Slides whose parquet exists AND holds the full tile count -> resume skips them.
+
+    A parquet with a short row count is a tail flush from a previous run (or a torn
+    write); it is redone rather than trusted, so resume can never produce a hole.
+    """
+    done: set[str] = set()
+    for stem, want in counts.items():
+        path = model_dir / f"{stem}.parquet"
+        if not path.is_file():
+            continue
+        try:
+            got = pq.ParquetFile(path).metadata.num_rows
+        except Exception:  # noqa: BLE001 -- a corrupt file is simply redone
+            got = -1
+        if got == want:
+            done.add(stem)
+        else:
+            print(f"  resume: {stem}.parquet has {got} rows, expected {want} -- redoing")
+    return done
+
+
+def flush_slide(stem: str, df: pd.DataFrame, model_dir: Path) -> Path:
+    """Write one slide's parquet atomically, so a kill never leaves a half file."""
+    out = model_dir / f"{stem}.parquet"
+    tmp = model_dir / f".{stem}.parquet.tmp"
+    df.to_parquet(tmp, index=False)
+    os.replace(tmp, out)
+    return out
+
+
+def summary(model_dir: Path, counts: dict[str, int]) -> int:
+    """Confirm what is on disk: rows per slide (parquet metadata) and the vector dim."""
+    paths = {stem: model_dir / f"{stem}.parquet" for stem in sorted(counts)}
+    dim = 0
+    for path in paths.values():
+        if path.is_file():
+            emb = pd.read_parquet(path, columns=["embedding"])
+            dim = len(emb["embedding"].iloc[0])
+            break
+    missing = []
+    for stem, path in paths.items():
+        if not path.is_file():
+            missing.append(stem)
+            print(f"  {stem}: MISSING")
+            continue
+        rows = pq.ParquetFile(path).metadata.num_rows
+        flag = "" if rows == counts[stem] else f"  (expected {counts[stem]})"
+        print(f"  {stem}: {rows} tiles, dim {dim} -> {path}{flag}")
+    if missing:
+        sys.stderr.write(f"{len(missing)} slide(s) still missing: {', '.join(missing)}\n")
+        return 1
+    return 0
 
 
 def probe(svc: str, model: str, tiling_dir: Path) -> int:
@@ -140,6 +201,9 @@ def main() -> int:
     ap.add_argument("--probe", action="store_true", help="one-tile smoke test, no batch")
     ap.add_argument("--crop-only", action="store_true",
                     help="crop tiles through the Ray pipeline but skip the model call")
+    ap.add_argument("--flush-rows", type=int, default=8192,
+                    help="rows per streamed batch (a finished slide is flushed as soon "
+                         "as its last tile arrives)")
     args = ap.parse_args()
 
     if not args.tiling_dir.is_dir():
@@ -162,6 +226,24 @@ def main() -> int:
 
     model_dir = args.out / args.model
     model_dir.mkdir(parents=True, exist_ok=True)
+
+    #: Per-slide durability. `ds.to_pandas()` + one `write_per_slide` at the end means a
+    #: kill anywhere in a multi-day run loses every vector (that is exactly how the 40 h
+    #: 186-slide run produced 0 parquets). Instead the stream is consumed batch by batch
+    #: and a slide is written the moment its last tile comes back; a slide whose parquet
+    #: already holds its full tile count is skipped, which is the resume path.
+    counts = expected_counts(tiles, id_to_stem)
+    done = already_done(model_dir, counts)
+    todo = {stem: n for stem, n in counts.items() if stem not in done}
+    if done:
+        print(f"resume: {len(done)}/{len(counts)} slides already in {model_dir}")
+    if not todo:
+        print("nothing to do -- every slide already has its full parquet")
+        return summary(model_dir, counts)
+    print(f"to do: {sum(todo.values())} tiles over {len(todo)} slides")
+    tiles_enriched = tiles_enriched[
+        tiles_enriched["slide_id"].map(id_to_stem).isin(todo)
+    ]
 
     import ray
 
@@ -189,19 +271,35 @@ def main() -> int:
             return 0
 
         ds = add_embedding_column(ds, args.model, args.svc, args.concurrency)
-        out_df = ds.to_pandas()
-        # write_per_slide's internal .assign(stem=...) does not mutate out_df,
-        # so the summary loop below needs its own stem column.
-        out_df = out_df.assign(stem=out_df["slide_id"].map(id_to_stem))
-        write_per_slide(out_df, id_to_stem, model_dir)
+
+        #: Only the slides still in flight are buffered, so driver memory stays at a few
+        #: slides' worth of vectors rather than all 3.9M rows.
+        pending: dict[str, list[pd.DataFrame]] = {}
+        got: dict[str, int] = {}
+        written = len(done)
+        for batch in ds.iter_batches(batch_size=args.flush_rows):
+            batch = batch.assign(stem=batch["slide_id"].map(id_to_stem))
+            for stem, grp in batch.groupby("stem", sort=False):
+                pending.setdefault(stem, []).append(grp)
+                got[stem] = got.get(stem, 0) + len(grp)
+                if got[stem] < todo[stem]:
+                    continue
+                flush_slide(stem, pd.concat(pending.pop(stem)), model_dir)
+                written += 1
+                print(f"[{written}/{len(counts)}] {stem}: {got[stem]} tiles "
+                      f"({time.time() - started:.0f}s) -> {stem}.parquet", flush=True)
+
+        #: A slide still split across the tail of the stream is embedded but unwritten;
+        #: flush it so the work survives, and let the next run finish it (resume requires
+        #: the full tile count, so a short parquet is redone rather than trusted).
+        for stem, frames in pending.items():
+            flush_slide(stem, pd.concat(frames), model_dir)
+            print(f"  {stem}: flushed {got[stem]}/{todo[stem]} tiles at end of stream",
+                  flush=True)
 
     total = time.time() - started
     print(f"\nfinished in {total:.0f}s")
-    for stem, grp in sorted(out_df.groupby("stem")):
-        emb = pd.read_parquet(model_dir / f"{stem}.parquet", columns=["x", "y", "embedding"])
-        dim = len(emb["embedding"].iloc[0])
-        print(f"  {stem}: {len(grp)} tiles, dim {dim} -> {model_dir / (stem + '.parquet')}")
-    return 0
+    return summary(model_dir, counts)
 
 
 if __name__ == "__main__":
