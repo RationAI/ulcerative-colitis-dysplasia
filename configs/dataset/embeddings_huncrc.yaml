@@ -15,7 +15,7 @@ dataset:
 data:
   _target_: ml.data.DataModule
   batch_size: 256
-  num_workers: 8
+  num_workers: 2
   datasets:
     train:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
@@ -23,15 +23,18 @@ data:
       embeddings_dir: ${dataset.embeddings_dir}
       split: train
       max_slides: ${dataset.max_slides}
+      cache_size: 2
     val:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_preliminary
       max_slides: ${dataset.max_slides}
+      cache_size: 2
     test:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_final
       max_slides: ${dataset.max_slides}
+      cache_size: 2
