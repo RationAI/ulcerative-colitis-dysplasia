@@ -1,0 +1,36 @@
+# @package _global_
+
+#: Tile-level binary dysplasia classification on precomputed prov-gigapath
+#: embeddings -- the hunCRC analogue of the IBD feat/modeling experiment.
+#:
+#:     uv run python -m ml +experiment=embeddings_huncrc
+#:
+#: Tuning = hydra overrides appended to that line, e.g.
+#:     uv run python -m ml +experiment=embeddings_huncrc ++trainer.max_epochs=50
+
+defaults:
+  - /dataset/embeddings_huncrc
+  - _self_
+
+mode: fit
+
+metadata:
+  run_name: "📊 MLP Embeddings (hunCRC)"
+  description: Tile-level binary dysplasia classification on prov-gigapath tile embeddings (hunCRC 186)
+
+trainer:
+  max_epochs: 30
+  accelerator: auto
+  devices: auto
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      dirpath: ${project_path}/embeddings_huncrc
+      filename: "emb-dysplasia-{epoch:02d}"
+      monitor: validation/auc
+      mode: max
+      save_last: true
+
+model:
+  _target_: ml.modeling.embeddings.DysplasiaEmbeddingsClassifier
+  dims: [1536, 512, 256, 1]
+  lr: 0.001

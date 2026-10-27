@@ -15,7 +15,7 @@ OmegaConf.register_new_resolver(
 )
 
 
-@hydra.main(config_path="../configs", config_name="project_name", version_base=None)
+@hydra.main(config_path="../configs", config_name="ml", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
     seed_everything(config.seed, workers=True)
@@ -25,7 +25,12 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
         _recursive_=False,  # to avoid instantiating all the datasets
         _target_=DataModule,
     )
-    model = hydra.utils.instantiate(config.model, _target_=MetaArch)
+    #: A config-level _target_ (e.g. an experiment's own model) wins;
+    #: MetaArch is the fallback for configs that don't specify one.
+    if "_target_" in config.model:
+        model = hydra.utils.instantiate(config.model)
+    else:
+        model = hydra.utils.instantiate(config.model, _target_=MetaArch)
 
     trainer = hydra.utils.instantiate(config.trainer, _target_=Trainer, logger=logger)
     getattr(trainer, config.mode)(model, datamodule=data, ckpt_path=config.checkpoint)

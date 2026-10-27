@@ -10,12 +10,15 @@ from ml.typing import Input
 
 class DataModule(LightningDataModule):
     def __init__(
-        self, batch_size: int, num_workers: int = 0, **datasets: DictConfig
+        self,
+        batch_size: int,
+        num_workers: int = 0,
+        datasets: dict[str, DictConfig] | None = None,
     ) -> None:
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.datasets = datasets
+        self.datasets = datasets or {}
 
     def setup(self, stage: str) -> None:
         match stage:

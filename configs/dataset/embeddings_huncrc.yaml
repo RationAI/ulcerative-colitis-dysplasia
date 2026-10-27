@@ -1,0 +1,37 @@
+# @package _global_
+
+#: hunCRC tile-embedding training data: local tiling_186_merged (with the
+#: split column from scripts/add_split_column.py) + prov-gigapath embedding
+#: parquets. Labels come from the TILING -- the label columns inside the
+#: embedding parquets were written by an earlier tiling generation and
+#: disagree with the current one.
+dataset:
+  tiling_dir: ${project_path}/tiling_186_merged
+  embeddings_dir: ${project_path}/embeddings_186_v3/prov-gigapath
+  #: null = every slide that has an embedding parquet; int = first N slides
+  #: per split (smoke tests / debug runs).
+  max_slides: null
+
+data:
+  _target_: ml.data.DataModule
+  batch_size: 256
+  num_workers: 8
+  datasets:
+    train:
+      _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
+      tiling_dir: ${dataset.tiling_dir}
+      embeddings_dir: ${dataset.embeddings_dir}
+      split: train
+      max_slides: ${dataset.max_slides}
+    val:
+      _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
+      tiling_dir: ${dataset.tiling_dir}
+      embeddings_dir: ${dataset.embeddings_dir}
+      split: test_preliminary
+      max_slides: ${dataset.max_slides}
+    test:
+      _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
+      tiling_dir: ${dataset.tiling_dir}
+      embeddings_dir: ${dataset.embeddings_dir}
+      split: test_final
+      max_slides: ${dataset.max_slides}
