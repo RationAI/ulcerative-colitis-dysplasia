@@ -47,7 +47,7 @@ submit_job(
     image="cerit.io/rationai/base:2.0.6",
     public=True,
     cpu=8,
-    memory="16Gi",
+    memory="64Gi",
     gpu=GPU,
     script=[
         f"git clone --branch {BRANCH} "
