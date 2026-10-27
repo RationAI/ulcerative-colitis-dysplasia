@@ -20,8 +20,12 @@ slide -- so there is no column filtering: every tile of every embedded slide
 is a training sample (annotated = positive, unannotated tissue = negative,
 the same convention the U-Net experiment uses).
 
-Slides are loaded lazily (an LRU of whole-slide vector arrays); no
-OpenSlide is involved, so this is fork-safe with dataloader workers.
+All vectors of the split are read once, in __init__, into a single contiguous
+float32 array. The train sampler shuffles over ~900k tiles, so slides are
+visited in random order and any per-slide cache misses almost every time --
+a lazy loader re-reads a ~130 MB parquet (plus a 21k-row grid check) per
+batch. The array is read-only after construction, so the forked dataloader
+workers share it copy-on-write instead of each holding its own copy.
 """
 
 from __future__ import annotations
@@ -43,11 +47,9 @@ class DysplasiaEmbeddingsDataset(Dataset):
         embeddings_dir: str | Path,
         split: str,
         max_slides: int | None = None,
-        cache_size: int = 8,
     ) -> None:
         tiling_dir, embeddings_dir = Path(tiling_dir), Path(embeddings_dir)
         self.split = split
-        self.cache_size = cache_size
 
         slides = pd.read_parquet(tiling_dir / "slides" / "slides.parquet")
         slides = slides[slides["split"] == split].copy()
@@ -112,59 +114,72 @@ class DysplasiaEmbeddingsDataset(Dataset):
                 self._tiles["y"].astype(int),
             )
         )
-        #: Per-slide tile slice (row indices into self._tiles).
+        #: Row indices of each slide inside self._tiles.
         self._tile_slice = {
-            sid: idx
+            sid: np.asarray(idx)
             for sid, idx in self._tiles.groupby("slide_id").groups.items()
         }
-        self._cache: dict[str, tuple[np.ndarray, np.ndarray, dict]] = {}
+        self._labels = (
+            (
+                (self._tiles["lowgrade_dysplasia"] > 0)
+                | (self._tiles["highgrade_dysplasia"] > 0)
+            )
+            .to_numpy(dtype=np.float32)
+        )
+        self._vectors = np.empty((0, 0), dtype=np.float32)
+        self._read_vectors()
+
+    def _read_vectors(self) -> None:
+        """Read every slide's vectors into one (n_tiles, dim) float32 array."""
+        self._vectors = None
+        n = len(self._emb_paths)
+        for done, (sid, path) in enumerate(self._emb_paths.items(), 1):
+            idx = self._tile_slice[sid]
+            tile = self._tiles.iloc[idx]
+            emb = pd.read_parquet(path)
+            if len(emb) != len(tile) or (
+                set(map(tuple, emb[["x", "y"]].itertuples(index=False, name=None)))
+                != set(map(tuple, tile[["x", "y"]].itertuples(index=False, name=None)))
+            ):
+                raise RuntimeError(
+                    f"slide {sid}: embeddings grid ({len(emb)}) != tiling grid "
+                    f"({len(tile)}) -- embeddings were computed from a different tiling"
+                )
+            emb_pos = {
+                (int(x), int(y)): k
+                for k, (x, y) in enumerate(
+                    emb[["x", "y"]].itertuples(index=False, name=None)
+                )
+            }
+            emb_rows = np.fromiter(
+                (
+                    emb_pos[(int(x), int(y))]
+                    for x, y in tile[["x", "y"]].itertuples(
+                        index=False, name=None
+                    )
+                ),
+                dtype=np.int64,
+                count=len(tile),
+            )
+            vectors = np.stack(emb["embedding"].to_list()).astype(np.float32)
+            if self._vectors is None:
+                self._vectors = np.empty(
+                    (len(self._tiles), vectors.shape[1]), dtype=np.float32
+                )
+            self._vectors[idx] = vectors[emb_rows]
+            del emb, vectors
+            print(
+                f"[{self.split}] slide {done}/{n} {sid}: "
+                f"{self._vectors.nbytes / 2**30:.1f} GiB held",
+                flush=True,
+            )
 
     def __len__(self) -> int:
         return len(self._rows)
 
-    def _load_slide(self, slide_id: str) -> tuple[np.ndarray, np.ndarray, dict]:
-        if slide_id in self._cache:
-            return self._cache[slide_id]
-        if len(self._cache) >= self.cache_size:
-            self._cache.pop(next(iter(self._cache)))
-
-        tile = self._tiles.iloc[self._tile_slice[slide_id]]
-        emb = pd.read_parquet(self._emb_paths[slide_id])
-        if len(emb) != len(tile) or (
-            set(map(tuple, emb[["x", "y"]].itertuples(index=False, name=None)))
-            != set(map(tuple, tile[["x", "y"]].itertuples(index=False, name=None)))
-        ):
-            raise RuntimeError(
-                f"slide {slide_id}: embeddings grid ({len(emb)}) != tiling grid "
-                f"({len(tile)}) -- embeddings were computed from a different tiling"
-            )
-        emb_pos = {
-            (int(x), int(y)): i
-            for i, (x, y) in enumerate(emb[["x", "y"]].itertuples(index=False, name=None))
-        }
-        emb_rows = np.fromiter(
-            (emb_pos[(int(x), int(y))] for x, y in tile[["x", "y"]].itertuples(index=False, name=None)),
-            dtype=np.int64,
-            count=len(tile),
-        )
-        vectors = np.stack(emb["embedding"].to_list()).astype(np.float32)[emb_rows]
-        labels = (
-            ((tile["lowgrade_dysplasia"] > 0) | (tile["highgrade_dysplasia"] > 0))
-            .to_numpy(dtype=np.float32)
-        )
-        position = {
-            (int(x), int(y)): i
-            for i, (x, y) in enumerate(tile[["x", "y"]].itertuples(index=False, name=None))
-        }
-        loaded = (vectors, labels, position)
-        self._cache[slide_id] = loaded
-        return loaded
-
     def __getitem__(self, idx: int):
         slide_id, x, y = self._rows[idx]
-        vectors, labels, position = self._load_slide(slide_id)
-        k = position[(x, y)]
-        embedding = torch.from_numpy(np.ascontiguousarray(vectors[k]))
-        label = torch.tensor(labels[k])
+        embedding = torch.from_numpy(np.ascontiguousarray(self._vectors[idx]))
+        label = torch.tensor(self._labels[idx])
         metadata = {"slide_id": slide_id, "x": str(x), "y": str(y)}
         return embedding, label, metadata

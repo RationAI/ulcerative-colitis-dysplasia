@@ -15,7 +15,9 @@ dataset:
 data:
   _target_: ml.data.DataModule
   batch_size: 256
-  num_workers: 2
+  #: Each dataset preloads its split's vectors in __init__; the forked workers
+  #: share that array copy-on-write, so this no longer multiplies the vectors.
+  num_workers: 4
   datasets:
     train:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
@@ -23,18 +25,15 @@ data:
       embeddings_dir: ${dataset.embeddings_dir}
       split: train
       max_slides: ${dataset.max_slides}
-      cache_size: 2
     val:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_preliminary
       max_slides: ${dataset.max_slides}
-      cache_size: 2
     test:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_final
       max_slides: ${dataset.max_slides}
-      cache_size: 2
