@@ -14,11 +14,11 @@ Samples are (embedding, label, metadata):
   * split     <- slides.parquet `split` column (scripts/add_split_column.py):
                  train / test_preliminary / test_final, case-level 70/15/15.
 
-IBD's annotated-column filter (feat/modeling preprocessing/filter_tiles.py)
-is applied per slide at construction time: tiles are clustered on x-gaps and, when
-the slide carries any annotation, only the annotated cluster is kept --
-tiles from unannotated tissue sections are "unknown", not negative. Slides
-without any annotation are kept whole (true-negative slides).
+Unlike IBD (scanned glass slides where only one tissue section is annotated
+and the rest is "unknown"), the hunCRC EMPIA annotations cover the WHOLE
+slide -- so there is no column filtering: every tile of every embedded slide
+is a training sample (annotated = positive, unannotated tissue = negative,
+the same convention the U-Net experiment uses).
 
 Slides are loaded lazily (an LRU of whole-slide vector arrays); no
 OpenSlide is involved, so this is fork-safe with dataloader workers.
@@ -32,41 +32,6 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-
-
-def _keep_annotated_cluster(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep only the tissue column(s) carrying annotations (IBD rule).
-
-    Tiles are clustered by x-gaps: a gap > 5x the MEDIAN gap starts a new
-    cluster. On IBD slides the between-section gap is ~35x the in-section
-    stride, so sections separate cleanly; on a uniform grid (hunCRC
-    single-section slides) every gap equals the median, so the whole slide
-    is one cluster and the filter is a no-op. (The IBD 0.5x-max threshold
-    degenerates on uniform grids: every column becomes its own cluster.)
-    When the slide has any annotation, only the annotated cluster is kept.
-    Raises when annotations span more than one cluster -- the IBD rule is
-    one annotated section per slide, so a multi-cluster hit is a data bug
-    to fail on, not silently drop.
-    """
-    if df["annotation"].sum() == 0:
-        return df
-
-    unique_x = np.sort(df["x"].unique())
-    x_diffs = np.diff(unique_x)
-    threshold = np.median(x_diffs) * 5.0 if x_diffs.size else 0.0
-    clusters = np.concatenate([[0], (x_diffs > threshold).cumsum()])
-    cluster_of_x = dict(zip(unique_x.tolist(), clusters.tolist()))
-
-    out = df.copy()
-    out["_cluster"] = out["x"].map(cluster_of_x)
-    sums = out.groupby("_cluster")["annotation"].sum()
-    valid = set(sums.index[sums > 0])
-    if len(valid) > 1:
-        raise RuntimeError(
-            f"slide {df['slide_id'].iloc[0]}: annotations in {len(valid)} tissue "
-            "clusters -- expected one annotated section per slide"
-        )
-    return out[out["_cluster"].isin(valid)].drop(columns=["_cluster"])
 
 
 class DysplasiaEmbeddingsDataset(Dataset):
@@ -103,7 +68,7 @@ class DysplasiaEmbeddingsDataset(Dataset):
             self._slides = self._slides.iloc[:max_slides].reset_index(drop=True)
 
         #: Labels come from the TILING, not the embeddings parquets (stale
-        #: there). Only the columns the filter and the label need.
+        #: there). Only the columns the label needs.
         tiles = pd.concat(
             [
                 pd.read_parquet(
@@ -112,7 +77,6 @@ class DysplasiaEmbeddingsDataset(Dataset):
                         "slide_id",
                         "x",
                         "y",
-                        "annotation",
                         "lowgrade_dysplasia",
                         "highgrade_dysplasia",
                     ],
@@ -124,21 +88,9 @@ class DysplasiaEmbeddingsDataset(Dataset):
         #: reset_index: concat keeps each shard's RangeIndex, so the index
         #: labels are 4-way duplicated and groupby().groups + .iloc would
         #: select the wrong rows.
-        tiles = tiles[tiles["slide_id"].isin(keep)].reset_index(drop=True)
-        if tiles.empty:
-            raise SystemExit(f"split {split}: no tiles for its slides")
-        #: Full-grid size per slide, for the grid check in _load_slide (the
-        #: annotated-column filter below legitimately shrinks the tiling side).
-        self._grid_sizes = tiles.groupby("slide_id").size().to_dict()
-        #: IBD's annotated-column filter, applied once per slide up front --
-        #: _rows must be built AFTER it, or dropped tiles dangle as samples
-        #: whose (x, y) no longer exists in the slide's position dict.
-        self._tiles = pd.concat(
-            (_keep_annotated_cluster(t) for _, t in tiles.groupby("slide_id")),
-            ignore_index=True,
-        )
+        self._tiles = tiles[tiles["slide_id"].isin(keep)].reset_index(drop=True)
         if self._tiles.empty:
-            raise SystemExit(f"split {split}: no tiles left after the column filter")
+            raise SystemExit(f"split {split}: no tiles for its slides")
         pos = (
             (self._tiles["lowgrade_dysplasia"] > 0)
             | (self._tiles["highgrade_dysplasia"] > 0)
@@ -178,29 +130,23 @@ class DysplasiaEmbeddingsDataset(Dataset):
 
         tile = self._tiles.iloc[self._tile_slice[slide_id]]
         emb = pd.read_parquet(self._emb_paths[slide_id])
-        #: Grid check against the FULL tile count (the annotated-column
-        #: filter already shrank self._tiles at construction time).
-        if len(emb) != self._grid_sizes[slide_id]:
+        if len(emb) != len(tile) or (
+            set(map(tuple, emb[["x", "y"]].itertuples(index=False, name=None)))
+            != set(map(tuple, tile[["x", "y"]].itertuples(index=False, name=None)))
+        ):
             raise RuntimeError(
-                f"slide {slide_id}: embeddings ({len(emb)} tiles) != tiling grid "
-                f"({self._grid_sizes[slide_id]} tiles) -- embeddings were computed "
-                "from a different tiling"
+                f"slide {slide_id}: embeddings grid ({len(emb)}) != tiling grid "
+                f"({len(tile)}) -- embeddings were computed from a different tiling"
             )
         emb_pos = {
             (int(x), int(y)): i
             for i, (x, y) in enumerate(emb[["x", "y"]].itertuples(index=False, name=None))
         }
-        try:
-            emb_rows = np.fromiter(
-                (emb_pos[(int(x), int(y))] for x, y in tile[["x", "y"]].itertuples(index=False, name=None)),
-                dtype=np.int64,
-                count=len(tile),
-            )
-        except KeyError as e:
-            raise RuntimeError(
-                f"slide {slide_id}: tile {e.args[0]} is in the tiling but not in the "
-                "embeddings -- embeddings were computed from a different tiling"
-            ) from e
+        emb_rows = np.fromiter(
+            (emb_pos[(int(x), int(y))] for x, y in tile[["x", "y"]].itertuples(index=False, name=None)),
+            dtype=np.int64,
+            count=len(tile),
+        )
         vectors = np.stack(emb["embedding"].to_list()).astype(np.float32)[emb_rows]
         labels = (
             ((tile["lowgrade_dysplasia"] > 0) | (tile["highgrade_dysplasia"] > 0))
