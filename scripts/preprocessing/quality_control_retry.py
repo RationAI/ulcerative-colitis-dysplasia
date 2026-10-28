@@ -66,8 +66,13 @@ submit_job(
         f"set +x; export MLFLOW_TRACKING_USERNAME='{MLFLOW_USER}'; "
         f"export MLFLOW_TRACKING_PASSWORD='{MLFLOW_TOKEN}'; set -x",
         "uv sync --frozen",
+        #: 059 is the one slide the service needs longer than the 5 h default for: it
+        #: timed out at exactly 18000 s twice (once alone), leaving its per-tile masks
+        #: but no qc_metrics.csv row, so --slides pins the retry to it and the timeout
+        #: doubles. The other 199 rows are already in the csv.
         "uv run python scripts/rerun_missing_qc.py "
-        f"--out {QC_OUTPUT_DIR} --timeout 18000 --max-concurrent 5 --upload",
+        f"--out {QC_OUTPUT_DIR} --slides 059 --timeout 36000 "
+        "--max-concurrent 1 --upload",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )
