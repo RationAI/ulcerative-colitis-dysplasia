@@ -99,8 +99,9 @@ def upload_qc_artifacts(out_dir: Path, experiment_id: str) -> str:
     upload_annotation_masks.py for the public-URI dance)."""
     import mlflow
 
-    #: int, not str -- set_experiment would otherwise try to resolve it as a NAME first.
-    mlflow.set_experiment(int(experiment_id))
+    #: BY KEYWORD: set_experiment's first positional is the NAME, so set_experiment(168)
+    #: goes through get_experiment_by_name(168) and dies with "bad argument type".
+    mlflow.set_experiment(experiment_id=int(experiment_id))
     with mlflow.start_run(run_name="QC output (200 slides, huncrc)") as run:
         mlflow.log_artifacts(local_dir=str(out_dir), artifact_path="qc_output")
     uri = f"mlflow-artifacts:/{experiment_id}/{run.info.run_id}/artifacts/qc_output"
