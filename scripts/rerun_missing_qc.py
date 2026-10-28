@@ -209,6 +209,10 @@ def main() -> int:
 
     if not want:
         print("nothing to do -- every real slide is already in qc_metrics.csv")
+        #: Still honour --upload: after the last slide lands, a re-run is how the
+        #: finished tree reaches MLflow (e.g. the first upload died mid-way).
+        if args.upload:
+            upload_qc_artifacts(out_dir, args.experiment_id)
         return 0
 
     print(f"output : {out_dir}")
