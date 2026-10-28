@@ -11,6 +11,12 @@ dataset:
   #: null = every slide that has an embedding parquet; int = first N slides
   #: per split (smoke tests / debug runs).
   max_slides: null
+  #: Serial-sections filter (2D-connected pieces within cluster_k * stride;
+  #: on annotated slides only the annotated pieces are kept). 2.0 validated
+  #: against the cohort: closest two distinct pieces anywhere = 2.236*stride,
+  #: so pieces never merge and one missing-tile hole is bridged.
+  #: null = off (every tile is a sample, unannotated = negative).
+  cluster_k: 2.0
 
 data:
   _target_: ml.data.DataModule
@@ -25,15 +31,18 @@ data:
       embeddings_dir: ${dataset.embeddings_dir}
       split: train
       max_slides: ${dataset.max_slides}
+      cluster_k: ${dataset.cluster_k}
     val:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_preliminary
       max_slides: ${dataset.max_slides}
+      cluster_k: ${dataset.cluster_k}
     test:
       _target_: ml.data.embeddings_dataset.DysplasiaEmbeddingsDataset
       tiling_dir: ${dataset.tiling_dir}
       embeddings_dir: ${dataset.embeddings_dir}
       split: test_final
       max_slides: ${dataset.max_slides}
+      cluster_k: ${dataset.cluster_k}
