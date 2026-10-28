@@ -32,6 +32,11 @@ MLFLOW_USER = "519192@mail.muni.cz"
 MLFLOW_TOKEN = os.environ.get("MLFLOW_TRACKING_PASSWORD")
 #: JobGPUType from kube_jobs.resolve_gpu: "A100" | "A40" | "H100" | ...
 GPU = os.environ.get("GPU", "A100")
+#: Distinct names let several GPU selectors race for a free slot (spec.template is
+#: immutable, so a variant needs its own Job); delete the losers once one schedules.
+JOB_NAME = os.environ.get(
+    "JOB_NAME", "ulcerative-colitis-dysplasia-embeddings-huncrc"
+)
 EXTRA_OVERRIDES = os.environ.get("HYDRA_OVERRIDES", "")
 
 
@@ -42,7 +47,7 @@ if not MLFLOW_TOKEN:
     )
 
 submit_job(
-    job_name="ulcerative-colitis-dysplasia-embeddings-huncrc",
+    job_name=JOB_NAME,
     username="borisim",
     image="cerit.io/rationai/base:2.0.6",
     public=True,
