@@ -11,28 +11,38 @@
 #:     additionally mounts the sensitive MOU store at /mnt/data, and its `data-ro` PVC does
 #:     not exist on the public cluster -- so with public=True this is the only valid choice.
 #:
-#: MLflow does not work with public=True, which is the open problem here. Only two
-#: deployments exist and each is blocked one way (job log, run 1, Oct 1):
-#:
-#:   * the configmap URI submit_job injects is the OIDC-gated public instance, and it
-#:     passes only MLFLOW_TRACKING_USERNAME -- no password param -- so mlflow gets the
-#:     login HTML where it expects JSON.
-#:   * http://mlflow.rationai-mlflow:5000 is the SENSITIVE cluster's service name; on
-#:     kuba-cluster it fails DNS ("Failed to resolve 'mlflow.rationai-mlflow'"). It is in
-#:     NO_PROXY only because kube_jobs was written for the sensitive side.
-#:
-#: Disabling logging is not an escape: the payload writes dataset.csv to a tmpdir and
-#: MLflow is its only durable sink (preprocessing/create_dataset.py:124-126).
+#: MLflow works with public=True: the configmap URI is the in-cluster endpoint and
+#: the access key exported below authenticates against it (proven by the provenance
+#: registration jobs, Oct 29). The sensitive-cluster service name
+#: http://mlflow.rationai-mlflow:5000 does NOT resolve on kuba-cluster -- do not use
+#: it here (the export line that tried it is kept commented as the record of a dead
+#: end).
 #:
 #: `job` is a dependency-GROUP here, not an extra -- uv add/uv run take `--group job`.
 #: That group is only needed to RUN this submitter; the job itself syncs plain
 #: `uv sync --frozen`, because the payload (`preprocessing.create_dataset`) never
 #: imports kube_jobs -- only the submitters in scripts/ do.
 #:   uv run --group job python scripts/preprocessing/create_dataset.py
+import os
+
 from kube_jobs import storage, submit_job
 
 
 BRANCH = "huncrc"
+
+#: public=True can only reach the OIDC-gated MLflow, and submit_job passes no password,
+#: so the token has to be exported inside the job. Read from the notebook env rather than
+#: written here: this file is tracked, and a literal would sit in git history forever.
+#:   export MLFLOW_TRACKING_PASSWORD=<access key>   (UI -> Permission -> create access key)
+#: Revoke the key after the run. `set +x` around the export keeps it out of the log.
+#: Not secret; matches the author email in pyproject.toml and the account the key is under.
+MLFLOW_USER = "519192@mail.muni.cz"
+MLFLOW_TOKEN = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+if not MLFLOW_TOKEN:
+    raise SystemExit(
+        "MLFLOW_TRACKING_PASSWORD is unset. Mint an access key in the MLflow UI "
+        "(Permission -> create access key) and export it. A login password is rejected."
+    )
 
 submit_job(
     job_name="ulcerative-colitis-dysplasia-create-dataset-huncrc",
@@ -49,11 +59,26 @@ submit_job(
         f"git clone --branch {BRANCH} "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
         "cd workdir",
+        # username= does double duty (submit_job.py:110,190): the k8s label, which must
+        # drop '@', and MLFLOW_TRACKING_USERNAME, which mlflow-oidc wants as the e-infra
+        # email that the access key was minted for. The label-safe value above made the
+        # token and the identity disagree -> 401. Override the MLflow side only.
+        f"set +x; export MLFLOW_TRACKING_USERNAME='{MLFLOW_USER}'; "
+        f"export MLFLOW_TRACKING_PASSWORD='{MLFLOW_TOKEN}'; set -x",
+        # Provenance: capture_environment resolves the user from JOB_USER and fails the
+        # run when it is unset or unregistered (kube-jobs 0.4.0 does not inject it).
+        "export JOB_USER='borisim'",
         # BROKEN, kept as the record of a dead end: this is the sensitive cluster's
         # service name and does not resolve on kuba-cluster. See the MLflow note above.
         # "export MLFLOW_TRACKING_URI=http://mlflow.rationai-mlflow:5000",
+        # --with overlays rationai-provenance (needed by the provenance hook) onto the
+        # project env without touching pyproject/uv.lock. Simplify to a plain `uv run`
+        # once the lib is a locked project dependency (uv add).
         "uv sync --frozen",
-        "uv run python -m preprocessing.create_dataset +dataset=raw",
+        "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
+        "python -m preprocessing.create_dataset +dataset=raw",
     ],
-    storage=[storage.public.DATA],
+    # PROJECTS (read-write) added for provenance: verify_manifest reads
+    # ${project_path}/preprocessing/manifest.csv written by the registration job.
+    storage=[storage.public.DATA, storage.public.PROJECTS],
 )

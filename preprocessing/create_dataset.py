@@ -7,6 +7,9 @@ import pandas as pd
 from omegaconf import DictConfig
 from rationai.mlkit import autolog, with_cli_args
 from rationai.mlkit.lightning.loggers import MLFlowLogger
+from rationai.provenance import log_provenance
+from rationai.provenance.dataset import verify_manifest
+
 
 #: Per-tile label sets live one dir per case under each zoom part:
 #: ML_dataset/<zoom_part>/<NNN>/<NNN>_labels.csv
@@ -112,6 +115,21 @@ def create_dataset(
 @hydra.main(config_path="../configs", config_name="preprocessing", version_base=None)
 @autolog
 def main(config: DictConfig, logger: MLFlowLogger) -> None:
+    # Provenance: before touching the data, verify the raw slides on disk still match
+    # the registered cohort's fingerprint (scripts/provenance_register_dataset.py).
+    # Fail the run on drifted data instead of silently logging a broken link.
+    manifest_path = Path(config.project_path) / "preprocessing" / "manifest.csv"
+    verify = verify_manifest(
+        str(manifest_path), str(manifest_path.parent), str(config.provenance.dataset_run_id)
+    )
+    for detail in verify["details"]:
+        print(f"[create_dataset] verify: {detail}")
+    if not verify["verified"]:
+        raise SystemExit(
+            f"[create_dataset] dataset verification FAILED (run "
+            f"{config.provenance.dataset_run_id}) — refusing to process"
+        )
+
     dataset, missing_tiles = create_dataset(
         config.dataset.slides_path,
         config.dataset.tiles_path,
@@ -131,6 +149,17 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             logger.log_artifact(str(file_path))
 
         _log_missing_items(missing_tiles, "missing_tiles.txt")
+
+        # Provenance: log who ran what on which data. This run consumes the pinned
+        # cohort registration (config.provenance.dataset_run_id) and produces
+        # dataset.csv; log_provenance captures the environment, the config, and the
+        # output frame's stats + file manifest, and records the pinned input run.
+        log_provenance(
+            output=dataset,
+            logger=logger,
+            config=config,
+            inputs=[f"runs:/{config.provenance.dataset_run_id}"],
+        )
 
 
 if __name__ == "__main__":

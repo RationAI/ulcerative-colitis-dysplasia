@@ -3,3 +3,9 @@
 metadata:
   run_name: "📂 Dataset Creation"
   description: "Create dataset for dysplasia project"
+
+provenance:
+  #: Registration run of the huncrc cohort (scripts/provenance_register_dataset.py),
+  #: pinned by run id -- never "latest" -- so this run links to exactly the data
+  #: state that was registered. Re-pin after any re-registration.
+  dataset_run_id: "21bb67f96ea446b8b70ab3ac86710edd"
