@@ -81,7 +81,13 @@ submit_job(
         # Simplify to a plain `uv run` once the lib is a locked project dependency.
         "uv pip install --python .venv/bin/python "
         "'rationai-provenance @ git+https://github.com/RationAI/provenance.git'",
-        "uv run --no-sync python -m preprocessing.create_dataset +dataset=raw",
+        # project_path must be overridden: configs/base.yaml pins the IBD share, so
+        # verify_manifest went looking for
+        # /mnt/projects/inflammatory_bowel_disease/.../preprocessing/manifest.csv and
+        # died (2026-10-29, second run). Plain `key=value`, not `++`: base.yaml already
+        # declares project_path. Same override as scripts/preprocessing/epithelium_masks.py.
+        "uv run --no-sync python -m preprocessing.create_dataset +dataset=raw "
+        "project_path=/mnt/projects/huncrc_dysplasia",
     ],
     # PROJECTS (read-write) added for provenance: verify_manifest reads
     # ${project_path}/preprocessing/manifest.csv written by the registration job.
