@@ -118,6 +118,13 @@ def pod_cpu_limit() -> int:
     saw 128 and Ray Data fanned 128 tile tasks into it ("Resources: 128.0 CPU"),
     which is what OOMKilled all 14 per-slide jobs at 32Gi.
     """
+    #: kube_jobs sets limits.cpu, which this runtime enforces as a CPUSET -- the pod's
+    #: cpu.max reads "max 100000" (no quota) while nproc says 2 -- so the affinity
+    #: mask, not os.cpu_count() (192 on the node), is the real CPU count.
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError):
+        pass
     for quota_path, period_path in (
         ("/sys/fs/cgroup/cpu.max", None),                      # cgroup v2: "N 100000"
         ("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
