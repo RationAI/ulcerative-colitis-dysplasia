@@ -40,7 +40,10 @@ for stem in STEMS:
         image="cerit.io/rationai/base:2.0.6",
         public=True,
         cpu=2,
-        memory="8Gi",
+        #: Not 8Gi: Ray's OOM monitor reads the pod cgroup, and one slide's tile
+        #: workers (~2.4 GB each) plus the .mrxs read cache already filled 8Gi --
+        #: all 14 such jobs were OOMKilled at 7.63/8.00 GB on 2026-10-29.
+        memory="32Gi",
         script=[
             f"git clone --branch {BRANCH} "
             "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",
