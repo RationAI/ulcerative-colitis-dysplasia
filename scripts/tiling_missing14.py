@@ -41,6 +41,7 @@ hang under it):
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -110,6 +111,32 @@ def preflight(stems: list[str]) -> None:
         sys.exit(f"not in qc_metrics.csv: {no_qc}")
 
 
+def pod_cpu_limit() -> int:
+    """CPUs this pod may actually use, from the cgroup quota.
+
+    A kuba pod is not told the node's CPU count: on 2026-10-29 a 2-CPU tiling pod
+    saw 128 and Ray Data fanned 128 tile tasks into it ("Resources: 128.0 CPU"),
+    which is what OOMKilled all 14 per-slide jobs at 32Gi.
+    """
+    for quota_path, period_path in (
+        ("/sys/fs/cgroup/cpu.max", None),                      # cgroup v2: "N 100000"
+        ("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
+    ):
+        try:
+            text = Path(quota_path).read_text().split()
+            if period_path is None:
+                quota, period = text[0], text[1]
+                if quota == "max":
+                    continue
+                return max(1, round(int(quota) / int(period)))
+            quota = int(text[0])
+            if quota > 0:
+                return max(1, round(quota / int(Path(period_path).read_text())))
+        except (OSError, ValueError, IndexError):
+            continue
+    return os.cpu_count() or 1
+
+
 def run_tiling(df: pd.DataFrame) -> None:
     import ray
 
@@ -118,7 +145,15 @@ def run_tiling(df: pd.DataFrame) -> None:
     (OUT / "slides").mkdir(parents=True, exist_ok=True)
     (OUT / "tiles").mkdir(parents=True, exist_ok=True)
 
-    ray.init(runtime_env={"excludes": [".git", ".venv"]})
+    #: Bound Ray to the pod, not the node -- see pod_cpu_limit(). The object store is
+    #: tmpfs, so it counts against the pod's memory limit too; keep it small.
+    num_cpus = pod_cpu_limit()
+    print(f"ray.init num_cpus={num_cpus}", flush=True)
+    ray.init(
+        num_cpus=num_cpus,
+        object_store_memory=2 * 1024**3,
+        runtime_env={"excludes": [".git", ".venv"]},
+    )
     try:
         ds_slides, ds_tiles = tiling(
             df,
