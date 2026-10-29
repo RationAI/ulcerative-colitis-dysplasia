@@ -71,12 +71,17 @@ submit_job(
         # BROKEN, kept as the record of a dead end: this is the sensitive cluster's
         # service name and does not resolve on kuba-cluster. See the MLflow note above.
         # "export MLFLOW_TRACKING_URI=http://mlflow.rationai-mlflow:5000",
-        # --with overlays rationai-provenance (needed by the provenance hook) onto the
-        # project env without touching pyproject/uv.lock. Simplify to a plain `uv run`
-        # once the lib is a locked project dependency (uv add).
         "uv sync --frozen",
-        "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
-        "python -m preprocessing.create_dataset +dataset=raw",
+        # NOT `uv run --with`: that installs into a separate overlay env ranked behind
+        # the project venv, and `rationai` there is a regular package (its __path__ is
+        # the single site-packages/rationai dir), so `rationai.provenance` stays
+        # invisible -- the 2026-10-29 run died on ModuleNotFoundError despite the
+        # overlay building fine. Install into the venv so the files merge into that
+        # same rationai/ dir, then run without re-syncing it away.
+        # Simplify to a plain `uv run` once the lib is a locked project dependency.
+        "uv pip install --python .venv/bin/python "
+        "'rationai-provenance @ git+https://github.com/RationAI/provenance.git'",
+        "uv run --no-sync python -m preprocessing.create_dataset +dataset=raw",
     ],
     # PROJECTS (read-write) added for provenance: verify_manifest reads
     # ${project_path}/preprocessing/manifest.csv written by the registration job.
