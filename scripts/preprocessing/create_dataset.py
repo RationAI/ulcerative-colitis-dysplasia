@@ -30,6 +30,12 @@ from kube_jobs import storage, submit_job
 
 BRANCH = "huncrc"
 
+#: Optional experiment override. configs/base.yaml:11 pins the production experiment
+#: ("Ulcerative Colitis Dysplasia", id 168), but a provenance smoke test must not
+#: land there -- set EXPERIMENT=provenance_huncrc_test (id 212) to redirect the run.
+#: Plain `key=value`: base.yaml already declares metadata.experiment_name.
+EXPERIMENT = os.environ.get("EXPERIMENT")
+
 #: public=True can only reach the OIDC-gated MLflow, and submit_job passes no password,
 #: so the token has to be exported inside the job. Read from the notebook env rather than
 #: written here: this file is tracked, and a literal would sit in git history forever.
@@ -87,7 +93,8 @@ submit_job(
         # died (2026-10-29, second run). Plain `key=value`, not `++`: base.yaml already
         # declares project_path. Same override as scripts/preprocessing/epithelium_masks.py.
         "uv run --no-sync python -m preprocessing.create_dataset +dataset=raw "
-        "project_path=/mnt/projects/huncrc_dysplasia",
+        "project_path=/mnt/projects/huncrc_dysplasia"
+        + (f" metadata.experiment_name={EXPERIMENT}" if EXPERIMENT else ""),
     ],
     # PROJECTS (read-write) added for provenance: verify_manifest reads
     # ${project_path}/preprocessing/manifest.csv written by the registration job.
