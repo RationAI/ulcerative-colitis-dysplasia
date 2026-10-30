@@ -12,10 +12,10 @@
 #:   4. log_provenance  — env + hardware, config params, output stats +
 #:      file manifest, and the pinned input run (runs:/<dataset run id>)
 #:
-#: Run as a kube-job (submitter: scripts/provenance_create_dataset.py; needs
+#: Run as a kube-job (submitter: provenance/submitters/create_dataset.py; needs
 #: JOB_USER + MLflow credentials, both exported there):
 #:
-#:     uv run python -m scripts.provenance.create_dataset
+#:     uv run python -m provenance.create_dataset
 import os
 import tempfile
 
@@ -29,7 +29,7 @@ from preprocessing.create_dataset import create_dataset
 #: Where the cut-down test runs live, isolated from the production runs.
 #: (Input pins work across experiments — they are run ids, not experiment ids.)
 EXPERIMENT = "provenance_huncrc_test"
-#: Pinned registration run of the huncrc cohort (scripts/provenance_register_dataset.py).
+#: Pinned registration run of the huncrc cohort (provenance/register_dataset.py).
 #: Never "latest" — re-pin after any re-registration.
 DATASET_RUN_ID = "21bb67f96ea446b8b70ab3ac86710edd"
 #: Rows of the test output (verify still covers all 200 registered files).

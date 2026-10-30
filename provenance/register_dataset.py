@@ -7,7 +7,7 @@
 #: Run as a kube-job AFTER create_user (capture_environment hard-fails for an
 #: unregistered JOB_USER):
 #:
-#:     uv run python -m scripts.provenance.register_dataset
+#:     uv run python -m provenance.register_dataset
 #:
 #: The job needs PROJECTS storage (read the cohort csv, write manifest.csv)
 #: and DATA storage (stat the slide files for the fingerprint).

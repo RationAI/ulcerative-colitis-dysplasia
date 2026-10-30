@@ -5,7 +5,7 @@
 #: username can never be a typo (provenance looks up every later run by
 #: exactly this name — an unregistered user fails at startup).
 #:
-#:     uv run python -m scripts.provenance.create_user
+#:     uv run python -m provenance.create_user
 #:
 #: Needs MLflow credentials as usual: MLFLOW_TRACKING_USERNAME /
 #: MLFLOW_TRACKING_PASSWORD.

@@ -1,6 +1,6 @@
 #: Submit the project-dataset registration as a cluster job.
 #:
-#: Runs scripts/provenance/register_dataset.py: registers the hunCRC cohort
+#: Runs provenance/register_dataset.py: registers the hunCRC cohort
 #: (200 raw slides, preprocessing/dataset_split.csv) into the project's
 #: "Ulcerative Colitis Dysplasia" experiment — one run per dataset version,
 #: pinning per-file size+mtime fingerprints. Writes the canonical
@@ -47,9 +47,11 @@ submit_job(
         f"set +x; export MLFLOW_TRACKING_USERNAME='{MLFLOW_USER}'; "
         f"export MLFLOW_TRACKING_PASSWORD='{MLFLOW_TOKEN}'; set -x",
         f"export JOB_USER='{USERNAME}'",
-        "uv run --no-project "
-        "--with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
-        "python -m scripts.provenance.register_dataset",
+        "uv sync --frozen",
+        # --with overlays rationai-provenance onto the project env without
+        # touching pyproject/uv.lock (the production lock stays pristine).
+        "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
+        "python -m provenance.register_dataset",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )

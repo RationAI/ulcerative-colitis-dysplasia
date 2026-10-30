@@ -1,6 +1,6 @@
 #: Submit the provenance cut-down of the dataset-creation step as a cluster job.
 #:
-#: Runs scripts/provenance/create_dataset.py — a SEPARATE cut-down that reuses
+#: Runs provenance/create_dataset.py — a SEPARATE cut-down that reuses
 #: the original preprocessing.create_dataset logic but leaves the original
 #: script untouched (production reruns stay clean). Verifies the 200-slide
 #: registered cohort, lists the dataset on a SUBSET_N sample, and logs the
@@ -54,7 +54,7 @@ submit_job(
         # --with overlays rationai-provenance onto the project env without
         # touching pyproject/uv.lock (the production lock stays pristine).
         "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
-        "python -m scripts.provenance.create_dataset",
+        "python -m provenance.create_dataset",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )
