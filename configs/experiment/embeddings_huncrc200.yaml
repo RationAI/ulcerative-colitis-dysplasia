@@ -1,0 +1,40 @@
+# @package _global_
+
+#: Tile-level binary dysplasia classification on precomputed prov-gigapath
+#: embeddings -- FULL hunCRC cohort (200 slides: the 186 + the 14 that
+#: re-passed QC). Same model / trainer / target as experiment
+#: embeddings_huncrc (the 186-slide run); only the data paths differ, so the
+#: two runs' validation AUCs are directly comparable.
+#:
+#:     uv run python -m ml +experiment=embeddings_huncrc200
+#:
+#: Tuning = hydra overrides appended to that line, e.g.
+#:     uv run python -m ml +experiment=embeddings_huncrc200 ++trainer.max_epochs=50
+
+defaults:
+  - /dataset/embeddings_huncrc200
+  - _self_
+
+mode: fit
+
+metadata:
+  run_name: "📊 MLP Embeddings (hunCRC 200)"
+  description: Tile-level binary dysplasia classification on prov-gigapath tile embeddings (hunCRC full cohort, 200)
+
+trainer:
+  max_epochs: 30
+  accelerator: auto
+  devices: auto
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      #: New dir -- the 186-run checkpoints stay put in training/embeddings_huncrc.
+      dirpath: ${project_path}/training/embeddings_huncrc200
+      filename: "emb-dysplasia-{epoch:02d}"
+      monitor: validation/auc
+      mode: max
+      save_last: true
+
+model:
+  _target_: ml.modeling.embeddings.DysplasiaEmbeddingsClassifier
+  dims: [1536, 512, 256, 1]
+  lr: 0.001

@@ -4,8 +4,13 @@ defaults:
   - logger: mlflow
   - _self_
 
-data_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia
-project_path: /mnt/projects/inflammatory_bowel_disease/ulcerative_colitis_dysplasia
+#: TCIA_HunCRC paths, replacing the IBD cohort's. This branch is hunCRC-only and the IBD
+#: submitters clone the default branch unpinned, so these do not affect IBD jobs -- but a
+#: merge of huncrc into master would repoint them, so do not merge this file.
+data_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC
+#: Must be under /mnt/projects, the only read-write mount (storage.public.PROJECTS).
+#: Every preprocessing output_dir derives from this, e.g. ${project_path}/quality_control.
+project_path: /mnt/projects/huncrc_dysplasia
 
 metadata:
   experiment_name: Ulcerative Colitis Dysplasia
