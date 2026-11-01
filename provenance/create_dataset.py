@@ -29,9 +29,9 @@ from preprocessing.create_dataset import create_dataset
 #: Where the cut-down test runs live, isolated from the production runs.
 #: (Input pins work across experiments — they are run ids, not experiment ids.)
 EXPERIMENT = "provenance_huncrc_test"
-#: Pinned registration run of the huncrc cohort (provenance/register_dataset.py).
-#: Never "latest" — re-pin after any re-registration.
-DATASET_RUN_ID = "21bb67f96ea446b8b70ab3ac86710edd"
+#: Pinned registration run of the huncrc cohort (provenance/register_dataset.py,
+#: Dataset_Registry). Never "latest" — re-pin after any re-registration.
+DATASET_RUN_ID = "4ef2fb98adb8432b9ee224fc5bdd5231"
 #: Rows of the test output (verify still covers all 200 registered files).
 SUBSET_N = 2
 
