@@ -48,10 +48,13 @@ submit_job(
         f"export MLFLOW_TRACKING_PASSWORD='{MLFLOW_TOKEN}'; set -x",
         f"export JOB_USER='{USERNAME}'",
         "uv sync --frozen",
-        # --with overlays rationai-provenance onto the project env without
-        # touching pyproject/uv.lock (the production lock stays pristine).
-        "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
-        "python -m provenance.register_dataset",
+        # NOT `uv run --with`: the overlay env is ranked behind the project venv
+        # and the project's `rationai` package shadows `rationai.provenance`
+        # (proven by the 2026-10-29 create_dataset job dying on ModuleNotFoundError).
+        # Install into the venv, then run without re-syncing it away.
+        "uv pip install --python .venv/bin/python "
+        "'rationai-provenance @ git+https://github.com/RationAI/provenance.git'",
+        "uv run --no-sync python -m provenance.register_dataset",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )

@@ -51,10 +51,15 @@ submit_job(
         # not inject it).
         f"export JOB_USER='{USERNAME}'",
         "uv sync --frozen",
-        # --with overlays rationai-provenance onto the project env without
-        # touching pyproject/uv.lock (the production lock stays pristine).
-        "uv run --with 'rationai-provenance @ git+https://github.com/RationAI/provenance.git' "
-        "python -m provenance.create_dataset",
+        # NOT `uv run --with`: that installs into an overlay env ranked behind
+        # the project venv, and the project's `rationai` package (a regular
+        # package) shadows `rationai.provenance` -- the 2026-10-29 create_dataset
+        # job died on ModuleNotFoundError despite the overlay building fine.
+        # Install into the venv so the files merge into site-packages/rationai/,
+        # then run without re-syncing it away (pyproject/uv.lock stay pristine).
+        "uv pip install --python .venv/bin/python "
+        "'rationai-provenance @ git+https://github.com/RationAI/provenance.git'",
+        "uv run --no-sync python -m provenance.create_dataset",
     ],
     storage=[storage.public.DATA, storage.public.PROJECTS],
 )
