@@ -1,8 +1,8 @@
 #: Register the project dataset in MLflow — per project, once per dataset
 #: version. Writes the canonical manifest.csv next to the cohort csv (data
 #: stays in place) and stores the per-file fingerprint (size + mtime) in a
-#: registration run inside the PROJECT's experiment — later runs pin it by
-#: run_id.
+#: registration run inside the lib-global Dataset_Registry experiment —
+#: later runs pin it by run_id.
 #:
 #: Run as a kube-job AFTER create_user (capture_environment hard-fails for an
 #: unregistered JOB_USER):
@@ -13,9 +13,9 @@
 #: and DATA storage (stat the slide files for the fingerprint).
 from rationai.provenance import register_dataset
 
-# The project's experiment — same one the pipeline runs log to
-# (metadata.experiment_name in configs/base.yaml).
-EXPERIMENT = "Ulcerative Colitis Dysplasia"
+# The lib-global dataset registry — where lookup_dataset_run() and the lib's
+# auto-tagging expect registrations to live (rationai/provenance/dataset.py:29).
+EXPERIMENT = "Dataset_Registry"
 
 PROJECT_DIR = "/mnt/projects/huncrc_dysplasia"
 
