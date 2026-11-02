@@ -1,32 +1,33 @@
-#: Provenance cut-down of the QC step.
+#: Provenance cut-down of the QC step — REUSE MODE.
 #:
-#: The original preprocessing/quality_control.py is left UNTOUCHED. This copy
-#: reuses its qc_main() (one source of truth for the logic) on a 2-slide
-#: subset and wraps it in a provenance-logged MLflow run:
+#: WHY NOT RECOMPUTE: slides 155/059 already went through the production QC
+#: service (the 200-slide run `0e3d8a66…`, exp 168, "QC output (200 slides,
+#: huncrc)" — it processed the whole cohort into the staging dir on the
+#: project share, then FAILED before uploading anything to MLflow, so the
+#: share is the only copy). Recomputing the 2 slides would burn ~7.2 h of
+#: QC service time to produce the same masks for a test of the PROVENANCE
+#: LIBRARY, not of QC. So this script:
 #:
-#:   1. verify_manifest — the registered cohort still matches the pinned run
-#:   2. qc_main         — the original logic, 2 slides -> the shared QC service
-#:   3. gate            — FAIL LOUDLY if qc_metrics.csv has < 2 rows (the
-#:                        original exits green with missing slides; a provenance
-#:                        run for partial QC would be a lie)
-#:   4. log_provenance  — env + hardware, config params, qc_metrics output +
-#:                        the pinned input run (runs:/<create_dataset run id>)
+#:   1. verify_manifest  — the registered cohort still matches the pinned run
+#:   2. selects the 2 slides from the chain's dataset.csv (bc5160ba run)
+#:   3. COPIES the production masks for exactly those 2 slides into a
+#:      prov-dedicated staging dir (the production tree is never touched)
+#:   4. runs the same FAIL-LOUD gate as compute mode would (metrics rows +
+#:      all 4 mask families present for both slides)
+#:   5. log_provenance   — with the reuse recorded EXPLICITLY so the run is
+#:      not a lie about where its bytes came from:
+#:        * run name says "masks reused from production"
+#:        * cfg_masks_source / cfg_reused_from_production_run params
+#:        * inputs: the create_dataset run AND the production QC run
 #:
-#: SLOW BY NATURE: the QC service costs ~3.6 h of service time per slide, so
-#: even the 2-slide cut-down takes hours. Everything else in the provenance
-#: chain is minutes.
-#:
-#: The masks land in a PROV-dedicated staging dir (never the production
-#: quality_control/ tree) and are uploaded as the `qc_output` artifact that
-#: the tiling cut-down reads.
+#: The original preprocessing/quality_control.py is left UNTOUCHED.
 #:
 #: Run as a kube-job (submitter: provenance/submitters/quality_control.py;
 #: needs JOB_USER + MLflow credentials, both exported there):
 #:
 #:     uv run python -m provenance.quality_control
-import asyncio
 import os
-import tempfile
+import shutil
 from pathlib import Path
 
 import mlflow
@@ -35,9 +36,6 @@ from mlflow.artifacts import download_artifacts
 from rationai.provenance import log_provenance
 from rationai.provenance.dataset import verify_manifest
 
-#: Reuse the original logic — the original module stays byte-identical.
-from preprocessing.quality_control import qc_main
-
 #: Where the cut-down test runs live, isolated from the production runs.
 EXPERIMENT = "provenance_huncrc_test"
 #: Pinned create_dataset cut-down run (provenance/create_dataset.py) — its
@@ -45,9 +43,13 @@ EXPERIMENT = "provenance_huncrc_test"
 CREATE_DATASET_RUN_ID = "bc5160ba96064230b375cb15fdf78320"
 #: Pinned registration run of the huncrc cohort (verify gate).
 DATASET_RUN_ID = "4ef2fb98adb8432b9ee224fc5bdd5231"
+#: The production run that PRODUCED the reused masks (exp 168). It processed
+#: all 200 slides into the staging below, then failed before the MLflow
+#: upload — the share is the only copy of the bytes.
+PRODUCTION_QC_RUN_ID = "0e3d8a66a7084e0f8a492ba6186c1a80"
 
-#: Same values as configs/preprocessing/qc.yaml — hardcoded because this script
-#: intentionally does not go through the hydra config tree.
+#: The production QC parameters these masks were created with
+#: (configs/preprocessing/qc.yaml) — still true of the reused bytes.
 QC_PARAMETERS = {
     "mask_level": 3,
     "sample_level": 1,
@@ -56,12 +58,13 @@ QC_PARAMETERS = {
     "check_focus": True,
     "wb_correction": True,
 }
-REQUEST_TIMEOUT = 18000
-MAX_CONCURRENT = 5
+#: The 4 mask families get_qc_masks produces with those parameters.
+MASK_SUBDIRS = ("blur_per_pixel", "blur_per_tile", "artifacts_per_pixel", "artifacts_per_tile")
 
 PROJECT_PATH = "/mnt/projects/huncrc_dysplasia"
-#: Prov-dedicated staging dir — the production tree is
-#: /mnt/projects/huncrc_dysplasia/quality_control and must stay untouched.
+#: Production staging — read-only for this script.
+PRODUCTION_QC_STAGING = f"{PROJECT_PATH}/preprocessing/quality_control"
+#: Prov-dedicated staging dir the copied masks are logged from.
 QC_OUTPUT_DIR = f"{PROJECT_PATH}/preprocessing/prov_test/qc"
 DATASET_CSV_URI = (
     f"mlflow-artifacts:/212/{CREATE_DATASET_RUN_ID}/artifacts/dataset.csv"
@@ -82,50 +85,64 @@ def main() -> None:
     # 2. the 2-slide input, straight from the create_dataset cut-down run
     dataset = pd.read_csv(download_artifacts(DATASET_CSV_URI))
     slides = dataset["slide_path"].to_list()
-    print(f"[prov qc] {len(slides)} slides -> QC service: {slides}")
+    stems = [Path(s).stem for s in slides]
+    print(f"[prov qc] reusing production masks for: {stems}")
 
+    # 3. copy exactly those 2 slides' masks out of the production staging
     output_path = Path(QC_OUTPUT_DIR)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    mlflow.set_experiment(EXPERIMENT)
-    with mlflow.start_run(run_name="🎭 QC (provenance, subset)") as run:
-        # 3. original logic
-        asyncio.run(
-            qc_main(
-                output_path=output_path,
-                slides=slides,
-                request_timeout=REQUEST_TIMEOUT,
-                max_concurrent=MAX_CONCURRENT,
-                qc_parameters=QC_PARAMETERS,
-            )
-        )
+    prod_metrics = pd.read_csv(Path(PRODUCTION_QC_STAGING) / "qc_metrics.csv")
+    selected = prod_metrics[
+        prod_metrics["slide_name"].astype(str).str.zfill(3).isin(stems)
+    ]
+    missing = set(stems) - set(selected["slide_name"].astype(str).str.zfill(3))
+    if missing:
+        raise SystemExit(f"[prov qc] production qc_metrics.csv has no rows for {sorted(missing)}")
+    selected.to_csv(output_path / "qc_metrics.csv", index=False)
 
-        # 4. the gate: the original exits green with missing slides — a
-        # provenance run must not.
+    for subdir in MASK_SUBDIRS:
+        (output_path / subdir).mkdir(parents=True, exist_ok=True)
+        for stem in stems:
+            src = Path(PRODUCTION_QC_STAGING) / subdir / f"{stem}.tiff"
+            if not src.exists():
+                raise SystemExit(f"[prov qc] production mask missing: {src}")
+            shutil.copy2(src, output_path / subdir / f"{stem}.tiff")
+
+    mlflow.set_experiment(EXPERIMENT)
+    with mlflow.start_run(run_name="🎭 QC (provenance, subset — masks reused from production)") as run:
+        # 4. the gate: same fail-loud checks compute mode uses (plus the masks)
         metrics_path = output_path / "qc_metrics.csv"
         if not metrics_path.exists():
-            raise SystemExit("[prov qc] qc_metrics.csv missing — QC produced nothing")
+            raise SystemExit("[prov qc] qc_metrics.csv missing — nothing was copied")
         metrics = pd.read_csv(metrics_path)
-        missing = set(Path(s).stem for s in slides) - set(
-            metrics["slide_name"].astype(str).str.zfill(3)
-        )
+        missing = set(stems) - set(metrics["slide_name"].astype(str).str.zfill(3))
         if missing:
-            raise SystemExit(f"[prov qc] QC failed for slides {sorted(missing)} — not logging provenance")
+            raise SystemExit(f"[prov qc] QC rows missing for slides {sorted(missing)} — not logging provenance")
+        for subdir in MASK_SUBDIRS:
+            for stem in stems:
+                if not (output_path / subdir / f"{stem}.tiff").exists():
+                    raise SystemExit(f"[prov qc] mask missing after copy: {subdir}/{stem}.tiff")
 
-        # 5. upload the mask tree (what tiling reads) + log provenance
+        # 5. upload (what tiling reads) + log provenance, reuse stated
         mlflow.log_artifacts(str(output_path), "qc_output")
 
         log_provenance(
             output=metrics,
             config={
                 "dataset": {"name": "huncrc-cohort", "version": "1.0.0"},
+                "masks_source": PRODUCTION_QC_STAGING,
+                "reused_from_production_run": PRODUCTION_QC_RUN_ID,
+                "reuse_reason": "masks already produced by the production 200-slide QC service run; a provenance-library test does not need a recompute",
                 "qc_parameters": QC_PARAMETERS,
-                "request_timeout": REQUEST_TIMEOUT,
-                "max_concurrent": MAX_CONCURRENT,
+                "mask_subdirs": list(MASK_SUBDIRS),
                 "subset_slides": slides,
                 "provenance": {"create_dataset_run_id": CREATE_DATASET_RUN_ID},
             },
-            inputs=[f"runs:/{CREATE_DATASET_RUN_ID}"],
+            inputs=[
+                f"runs:/{CREATE_DATASET_RUN_ID}",
+                f"runs:/{PRODUCTION_QC_RUN_ID}",
+            ],
         )
         print(f"[prov qc] done — run {run.info.run_id} in experiment {EXPERIMENT}")
 

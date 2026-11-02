@@ -1,16 +1,16 @@
 #: Submit the provenance cut-down of the QC step as a cluster job.
 #:
-#: Runs provenance/quality_control.py — a SEPARATE cut-down that reuses
-#: the original preprocessing.quality_control logic but leaves the original
-#: script untouched (production reruns stay clean). Verifies the 200-slide
-#: registered cohort, sends the 2-slide test dataset to the shared QC
-#: service, GATES on both slides being present in qc_metrics.csv (the
-#: original exits green with missing slides — a provenance run must not),
-#: and logs the run with provenance into the isolated
-#: "provenance_huncrc_test" experiment.
+#: Runs provenance/quality_control.py — a SEPARATE cut-down that leaves the
+#: original preprocessing.quality_control script untouched. REUSE MODE: the
+#: 2 test slides (155/059) already went through the production QC service,
+#: so instead of burning ~7.2 h of service time it copies their masks from
+#: the production staging dir, GATES on both slides + all 4 mask families
+#: being present, records the reuse explicitly in the run (name,
+#: cfg_masks_source, cfg_reused_from_production_run, both runs in
+#: input_uris) and logs it into the isolated "provenance_huncrc_test"
+#: experiment.
 #:
-#: SLOW BY NATURE: the QC service costs ~3.6 h of service time per slide,
-#: so even the 2-slide cut-down takes hours. Submit it FIRST.
+#: FAST: no service call — verify + copy ~150 MB + upload. Minutes.
 #:
 #: Storage: DATA (verify_manifest fingerprints the .mrxs) + PROJECTS
 #: (registration manifest + prov-dedicated mask staging dir
