@@ -1,25 +1,27 @@
 #: Submit the provenance cut-down of the tiling step as a cluster job.
 #:
-#: Runs provenance/tiling.py — a SEPARATE cut-down that reuses the original
-#: preprocessing.tiling ray pipeline but leaves the original script untouched
-#: (production reruns stay clean). Verifies the 200-slide registered cohort,
-#: tiles the 2-slide test dataset (224 px @ 0.52 mpp, stride 112, the proven
-#: pilot geometry) and logs the run with provenance — pinning the WHOLE chain
-#: (create_dataset, split, QC, tissue) — into the isolated
-#: "provenance_huncrc_test" experiment.
+#: Runs provenance/tiling.py — a SEPARATE cut-down that leaves the original
+#: preprocessing.tiling script untouched (production reruns stay clean).
+#: REUSE MODE: both test slides are already tiled in the production full-cohort
+#: tiling (preprocessing/tiling_200), so instead of running ray + openslide it
+#: filters tiling_200 to exactly the 2 chain slides (predicate pushdown —
+#: only their tile rows are loaded), RESTAMPS split/fold to the chain's own
+#: split (train=059, test_final=155), writes the per-split parquet layout the
+#: tile_masks cut-down consumes, and logs the run with provenance — the reuse
+#: recorded explicitly (run name, cfg_masks_source, cfg_reuse_reason) — into
+#: the isolated "provenance_huncrc_test" experiment.
 #:
-#: WAVE 2 — submits AFTER the split/QC/tissue jobs finish: provenance/tiling.py
-#: carries SPLIT_RUN_ID / QC_RUN_ID / TISSUE_RUN_ID constants that must be
-#: filled in from the wave-1 job logs first, and the script refuses to run
-#: while any of them is still a placeholder.
+#: FAST: pandas/pyarrow only, no ray/openslide — minutes. No TISSUE_RUN_ID
+#: pin: reuse mode consumes the split CSVs + the production share, not the
+#: chain's QC/tissue artifacts (those runs stay pinned by the tile_masks and
+#: training runs, which carry the full ancestor list).
 #:
-#: SIZING. cpu=8/24Gi/shm=16Gi: mirrors the production tiling submitter —
-#: ray workers + openslide + pyvips overlap computation; 2 slides keeps the
-#: peak far below production, but the worker requests are unchanged.
+#: SIZING. cpu=4/16Gi: predicate-pushed reads load only ~177k tile rows;
+#: the 16 GiB headroom is for the pandas concat + parquet writes.
 #:
-#: Storage: DATA (the .mrxs the workers open; verify_manifest also
-#: fingerprints them) + PROJECTS (registration manifest + the per-slide
-#: EMPIA annotation JSONs under /mnt/projects/huncrc_dysplasia/annotations).
+#: Storage: DATA (verify_manifest fingerprints the .mrxs) + PROJECTS
+#: (registration manifest + the read-only tiling_200 source dir). The job
+#: writes nothing to the project share.
 #:
 #: Needs exported in the shell that runs this:
 #:   export MLFLOW_TRACKING_PASSWORD=<access key>
@@ -35,6 +37,9 @@ USERNAME = "borisim"
 #: Same values as the other huncrc submitters -- see embeddings_huncrc.py.
 MLFLOW_USER = "519192@mail.muni.cz"
 MLFLOW_TOKEN = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+#: Distinct names let a resubmit go out renamed instead of deleting the old job.
+JOB_NAME = os.environ.get("JOB_NAME", "ulcerative-colitis-dysplasia-prov-tiling")
+
 
 if not MLFLOW_TOKEN:
     raise SystemExit(
@@ -43,13 +48,12 @@ if not MLFLOW_TOKEN:
     )
 
 submit_job(
-    job_name="ulcerative-colitis-dysplasia-prov-tiling",
+    job_name=JOB_NAME,
     username=USERNAME,
     image="cerit.io/rationai/base:2.0.6",
     public=True,
-    cpu=8,
-    memory="24Gi",
-    shm="16Gi",
+    cpu=4,
+    memory="16Gi",
     script=[
         f"git clone --branch {BRANCH} "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir",

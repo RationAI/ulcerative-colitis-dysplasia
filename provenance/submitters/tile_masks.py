@@ -34,6 +34,8 @@ USERNAME = "borisim"
 #: Same values as the other huncrc submitters -- see embeddings_huncrc.py.
 MLFLOW_USER = "519192@mail.muni.cz"
 MLFLOW_TOKEN = os.environ.get("MLFLOW_TRACKING_PASSWORD")
+#: Distinct names let a resubmit go out renamed instead of deleting the old job.
+JOB_NAME = os.environ.get("JOB_NAME", "ulcerative-colitis-dysplasia-prov-tile-masks")
 
 if not MLFLOW_TOKEN:
     raise SystemExit(
@@ -42,7 +44,7 @@ if not MLFLOW_TOKEN:
     )
 
 submit_job(
-    job_name="ulcerative-colitis-dysplasia-prov-tile-masks",
+    job_name=JOB_NAME,
     username=USERNAME,
     image="cerit.io/rationai/base:2.0.6",
     public=True,

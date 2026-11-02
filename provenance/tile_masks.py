@@ -50,7 +50,11 @@ DATASET_RUN_ID = "4ef2fb98adb8432b9ee224fc5bdd5231"
 #: Pinned create_dataset cut-down run — root of this test chain (transitive
 #: input, pinned by the tiling run).
 CREATE_DATASET_RUN_ID = "bc5160ba96064230b375cb15fdf78320"
-#: ── FILLED IN after the tiling job finishes (run id from its logs) ──
+#: ── FILLED IN as the chain jobs finish (run ids from their logs) ──
+SPLIT_RUN_ID = "2385fd8162d746188c5c3092e2a1b605"
+QC_RUN_ID = "d9af25eaf0044e6d911887c69cc8e18b"
+#: Compute mode; finished 2026-11-02, verified (provenance logged, both tiffs).
+TISSUE_RUN_ID = "5d812b44fbc94d3cbf6391a1683297e6"
 TILING_RUN_ID = "TODO_FILL_AFTER_TILING_JOB"
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -73,10 +77,10 @@ TILING_BASE_URI = f"mlflow-artifacts:/212/{TILING_RUN_ID}/artifacts/tiling"
 
 
 def main() -> None:
-    if "TODO" in TILING_RUN_ID:
+    if "TODO" in (TILING_RUN_ID, TISSUE_RUN_ID).__str__():
         raise SystemExit(
-            "[prov tile-masks] the tiling run id is not pinned yet — "
-            "fill TILING_RUN_ID from the tiling job logs first"
+            "[prov tile-masks] upstream run ids are not pinned yet — "
+            "fill TILING_RUN_ID / TISSUE_RUN_ID from the job logs first"
         )
 
     # 1. verify the registered cohort before touching anything
@@ -100,7 +104,11 @@ def main() -> None:
     with mlflow.start_run(run_name="🧱 Tile masks (provenance, subset)") as run:
         slides_frames = []
         with tempfile.TemporaryDirectory() as tmpdir:
-            with ray.init(runtime_env={"excludes": [".git", ".venv"]}):
+            #: num_cpus caps the node at the pod's CPU limit — without it the raylet
+            #: sees the NODE's 192 CPUs and prestarts 192 idle workers (observed:
+            #: 13.7 GiB + ~0.6 core in the 2-slide tissue job). Scheduling only;
+            #: the per-task logic is the original, untouched.
+            with ray.init(num_cpus=4, runtime_env={"excludes": [".git", ".venv"]}):
                 for split in splits:
                     local_path = Path(download_artifacts(f"{TILING_BASE_URI}/{split}"))
                     slides = pd.read_parquet(local_path / "slides")
@@ -131,12 +139,27 @@ def main() -> None:
                     "level": LEVEL,
                     "max_concurrent": MAX_CONCURRENT,
                     "percentage_cols": PERCENTAGE_COLS,
+                    #: the FULL upstream chain, named — so this run is
+                    #: self-describing without following any link.
                     "provenance": {
+                        "dataset_registration_run_id": DATASET_RUN_ID,
                         "create_dataset_run_id": CREATE_DATASET_RUN_ID,
+                        "split_run_id": SPLIT_RUN_ID,
+                        "qc_run_id": QC_RUN_ID,
+                        "tissue_run_id": TISSUE_RUN_ID,
                         "tiling_run_id": TILING_RUN_ID,
                     },
                 },
-                inputs=[f"runs:/{TILING_RUN_ID}"],
+                #: every ancestor run, so the chain is interconnected from
+                #: any node (the user run is auto-stamped as user_run_id).
+                inputs=[
+                    f"runs:/{DATASET_RUN_ID}",
+                    f"runs:/{CREATE_DATASET_RUN_ID}",
+                    f"runs:/{SPLIT_RUN_ID}",
+                    f"runs:/{QC_RUN_ID}",
+                    f"runs:/{TISSUE_RUN_ID}",
+                    f"runs:/{TILING_RUN_ID}",
+                ],
             )
         print(f"[prov tile-masks] done — run {run.info.run_id} in experiment {EXPERIMENT}")
 
