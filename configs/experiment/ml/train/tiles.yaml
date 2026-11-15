@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - base
+  - /ml/data/tiles_datamodule@datamodule
+  - _self_
+
+datamodule:
+  batch_size: 64
+  num_workers: 8
+
+  train:
+    uris:
+      - ${dataset.mlflow_uris.tiling_filtered.train}
+    val_fold: ${val_fold}
+
+  val:
+    uris:
+      - ${dataset.mlflow_uris.tiling_filtered.train}
+    is_val: true
+    val_fold: ${val_fold}

@@ -1,0 +1,41 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/tiled_filtered/level1_extent224@dataset
+  - _self_
+
+mode: heatmap
+
+# Not used (this step only reads the saved val predictions parquets + the
+# filtered-tiles slide/tile geometry), but the shared datamodule interpolates
+# it, so a value is required for composition to resolve.
+val_fold: 0
+
+# The heatmap step never instantiates the datamodule, but @autolog resolves the
+# full config (OmegaConf.save(resolve=True)), so the datamodule's train/val URIs
+# must stay resolvable. They point at the same filtered tiles the heatmaps are
+# built from.
+datamodule:
+  train:
+    uris:
+      - ${dataset.mlflow_uris.tiling_filtered.train}
+  val:
+    uris:
+      - ${dataset.mlflow_uris.tiling_filtered.train}
+
+metadata:
+  run_name: "🗺 Fold-0 prediction heatmaps - ${model_name} - ${dataset.mpp}mpp"
+  description: "Render each fold-0 config's val predictions as continuous prob_high heatmaps from the Step-1 valfold parquets (CPU-only, no model load)."
+
+heatmap:
+  # MLflow run (Step 1) that holds the per-model val predictions under
+  # artifacts/valfold/<training_run_id>/val_predictions.parquet.
+  valfold_run_id: ???
+  # The four fold-0 runs to render (one per level-1 high config).
+  manifest: ml/manifests/level1_high_fold0.yaml
+  # Target pyramid level for rasterization. Predictions (embeddings level 1 =
+  # 0.52 mpp) map onto the level that matches the existing epithelium /
+  # annotation masks (the tile_masks branch rendered those at level 3), so the
+  # heatmaps stay in registry with them.
+  level: 3

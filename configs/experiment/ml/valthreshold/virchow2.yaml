@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/embeddings/level1_extent224@dataset
+  - _self_
+
+mode: valthreshold
+
+# Not used (this step only reads the saved val predictions parquets), but the
+# shared embeddings datamodule interpolates it, so a value is required.
+val_fold: 0
+
+metadata:
+  run_name: "🎯 Val-fold thresholds - ${model_name} - ${dataset.mpp}mpp"
+  description: "Pick one fixed threshold per model via argmax-F1 on its val fold (Step 2, CPU-only)."
+
+valthreshold:
+  # MLflow run (Step 1) that holds the per-model val predictions under
+  # artifacts/valfold/<training_run_id>/val_predictions.parquet.
+  valfold_run_id: ???
+  # Resolution of the probability sweep for argmax F1.
+  num_thresholds: 500

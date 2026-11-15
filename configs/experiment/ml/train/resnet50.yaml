@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/tiles
+  - /ml/model/resnet50@model
+  - _self_
+
+model_name: resnet50

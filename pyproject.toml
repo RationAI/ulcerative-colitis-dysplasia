@@ -27,6 +27,7 @@ dependencies = [
     "rationai-masks",
     "rationai-mlkit",
     "ratiopath",
+    "torchvision>=0.26.0",
 ]
 
 [tool.uv.sources]

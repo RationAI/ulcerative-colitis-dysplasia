@@ -1,0 +1,34 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - _self_
+
+mode: predict
+# Not used for inference (only datamodule.predict is instantiated), but the
+# shared embeddings datamodule interpolates it and requires a value to compose.
+val_fold: 0
+
+metadata:
+  run_name: "🔮 Inference - ${label_mode} - ${model_name} - ${dataset.tile_extent}px @ ${dataset.mpp}mpp - test_preliminary"
+  description: "Running inference with a trained virchow2 model on the held-out test_preliminary tiles."
+
+# Trained virchow2 checkpoint (mlflow artifact URI), passed at runtime.
+checkpoint: ???
+
+datamodule:
+  predict:
+    uris:
+      - ${dataset.mlflow_uris.embeddings.test_preliminary}
+    # Keep every tile so the heatmap covers the whole slide. These bounds are
+    # always satisfied (QC fractions are in [0, 1], epithelium >= 0), so no
+    # tile is dropped during prediction.
+    thresholds:
+      blur: 1.0
+      artifacts: 1.0
+    min_thresholds:
+      epithelium: 0.0
+
+# Local staging path where predictions are written, then logged to MLflow
+# under the predict run (artifact_path "predictions").
+predict_output: predictions/test_preliminary_predictions.parquet

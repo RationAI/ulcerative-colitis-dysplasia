@@ -1,5 +1,22 @@
-type Sample = ...  # TODO define the type returned by Dataset
+from typing import TypedDict
 
-type Input = ...  # TODO define the model input type
+from torch import Tensor
 
-type Outputs = ...  # TODO define the model output type
+
+class Metadata(TypedDict):
+    slide_name: str
+    x: int
+    y: int
+
+
+class MetadataBatch(TypedDict):
+    slide_name: list[str]
+    x: Tensor
+    y: Tensor
+
+
+type Sample = tuple[Tensor, Tensor, Metadata]
+type PredictSample = tuple[Tensor, Metadata]
+
+type Input = tuple[Tensor, Tensor, MetadataBatch]
+type PredictInput = tuple[Tensor, MetadataBatch]

@@ -1,0 +1,11 @@
+defaults:
+  - decode_head: cnn_classifier
+  - backbone: vgg16
+  - _self_
+
+decode_head:
+  in_features: 512
+  out_features: ???
+
+_target_: ml.cnn_model.CNNModel
+lr: ???

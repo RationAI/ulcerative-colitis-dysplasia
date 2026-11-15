@@ -1,0 +1,155 @@
+# IBD-34 Step 1 (val-fold predictions) manifest - level 2.
+#
+# Same schema as level1_high.yaml: one row per trained model to score on its own
+# validation fold. ``fold`` is the validation fold this run was trained against;
+# ``epi`` and ``negative_slides`` are the tile-filter settings the model was trained with
+# (applied again at inference so the val-fold distribution matches training).
+# ``checkpoint_uri`` is the best checkpoint logged by that training run
+# (highest epoch step under ``artifacts/checkpoints``, not ``last``).
+#
+# 20 runs: level 2, label_mode ``high`` only (no ``high_low``).
+runs:
+  # ── epi 0 - all slides ───────────────────────
+  - run_id: 639b5160771a485bb21c88c57f3a0a2a
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - all slides - 4 fold"
+    level: 2
+    fold: 4
+    epi: 0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/639b5160771a485bb21c88c57f3a0a2a/artifacts/checkpoints/epoch=19-step=9040/checkpoint.ckpt
+  - run_id: d6f3d9e772d4492487abe820ac375377
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - all slides - 3 fold"
+    level: 2
+    fold: 3
+    epi: 0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/d6f3d9e772d4492487abe820ac375377/artifacts/checkpoints/epoch=29-step=12690/checkpoint.ckpt
+  - run_id: 58c921c9cc2546369ee2c046b5c90925
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - all slides - 2 fold"
+    level: 2
+    fold: 2
+    epi: 0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/58c921c9cc2546369ee2c046b5c90925/artifacts/checkpoints/epoch=20-step=8925/checkpoint.ckpt
+  - run_id: 45d5b5045d68473b8d24a325748ce631
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - all slides - 1 fold"
+    level: 2
+    fold: 1
+    epi: 0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/45d5b5045d68473b8d24a325748ce631/artifacts/checkpoints/epoch=19-step=8500/checkpoint.ckpt
+  - run_id: aa5a132a62c145ac93a5db1420d3b3c9
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - all slides - 0 fold"
+    level: 2
+    fold: 0
+    epi: 0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/aa5a132a62c145ac93a5db1420d3b3c9/artifacts/checkpoints/epoch=22-step=10626/checkpoint.ckpt
+  # ── epi 0 - negative slides ──────────────────
+  - run_id: 2b42d4b184414263aac58303bcfba118
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - negative slides - 4 fold"
+    level: 2
+    fold: 4
+    epi: 0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/2b42d4b184414263aac58303bcfba118/artifacts/checkpoints/epoch=14-step=5850/checkpoint.ckpt
+  - run_id: ec715e72a60f44319fa249b2d6c319ca
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - negative slides - 3 fold"
+    level: 2
+    fold: 3
+    epi: 0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/ec715e72a60f44319fa249b2d6c319ca/artifacts/checkpoints/epoch=20-step=7581/checkpoint.ckpt
+  - run_id: e594963ae4444236846ead73625a9f31
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - negative slides - 2 fold"
+    level: 2
+    fold: 2
+    epi: 0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/e594963ae4444236846ead73625a9f31/artifacts/checkpoints/epoch=23-step=8568/checkpoint.ckpt
+  - run_id: f603caef66bd4ec8845cacb6acd630c8
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - negative slides - 1 fold"
+    level: 2
+    fold: 1
+    epi: 0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/f603caef66bd4ec8845cacb6acd630c8/artifacts/checkpoints/epoch=21-step=7898/checkpoint.ckpt
+  - run_id: ef610cc0d1c94aef868a6f9586c191f7
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0 - negative slides - 0 fold"
+    level: 2
+    fold: 0
+    epi: 0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/ef610cc0d1c94aef868a6f9586c191f7/artifacts/checkpoints/epoch=32-step=13332/checkpoint.ckpt
+  # ── epi 0.14 - all slides ────────────────────
+  - run_id: d9d33e0fab2843f699d702558f529732
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - all slides - 4 fold"
+    level: 2
+    fold: 4
+    epi: 0.14
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/d9d33e0fab2843f699d702558f529732/artifacts/checkpoints/epoch=22-step=5934/checkpoint.ckpt
+  - run_id: b42d12176be34c70bcdb9a31c82025a6
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - all slides - 3 fold"
+    level: 2
+    fold: 3
+    epi: 0.14
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/b42d12176be34c70bcdb9a31c82025a6/artifacts/checkpoints/epoch=36-step=8954/checkpoint.ckpt
+  - run_id: 70d2fbd8e7c34be88b1fa363ece3385e
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - all slides - 2 fold"
+    level: 2
+    fold: 2
+    epi: 0.14
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/70d2fbd8e7c34be88b1fa363ece3385e/artifacts/checkpoints/epoch=36-step=9139/checkpoint.ckpt
+  - run_id: 98e2e41a698445fa9dc5a9aa345684a6
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - all slides - 1 fold"
+    level: 2
+    fold: 1
+    epi: 0.14
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/98e2e41a698445fa9dc5a9aa345684a6/artifacts/checkpoints/epoch=41-step=10122/checkpoint.ckpt
+  - run_id: 3f800981d66b43e593665d4e48adda97
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - all slides - 0 fold"
+    level: 2
+    fold: 0
+    epi: 0.14
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/3f800981d66b43e593665d4e48adda97/artifacts/checkpoints/epoch=47-step=12384/checkpoint.ckpt
+  # ── epi 0.14 - negative slides ───────────────
+  - run_id: 9aaec6a4ab204240831bac1a383c3d91
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - negative slides - 4 fold"
+    level: 2
+    fold: 4
+    epi: 0.14
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/9aaec6a4ab204240831bac1a383c3d91/artifacts/checkpoints/epoch=26-step=6102/checkpoint.ckpt
+  - run_id: f370d53e1cbc4e5381afbfb8c008a5e7
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - negative slides - 3 fold"
+    level: 2
+    fold: 3
+    epi: 0.14
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/f370d53e1cbc4e5381afbfb8c008a5e7/artifacts/checkpoints/epoch=40-step=8733/checkpoint.ckpt
+  - run_id: a9c6878246314a6f912c8c4e8d644c2d
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - negative slides - 2 fold"
+    level: 2
+    fold: 2
+    epi: 0.14
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/a9c6878246314a6f912c8c4e8d644c2d/artifacts/checkpoints/epoch=28-step=6177/checkpoint.ckpt
+  - run_id: 8b4556e1fdc9429caef6781677b0e4d4
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - negative slides - 1 fold"
+    level: 2
+    fold: 1
+    epi: 0.14
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/8b4556e1fdc9429caef6781677b0e4d4/artifacts/checkpoints/epoch=31-step=6656/checkpoint.ckpt
+  - run_id: cb367e193d6e4dca9dfec3ba0c7589f6
+    run_name: "🏋️‍♂️ Training - high - virchow2 - level2 - epi 0.14 - negative slides - 0 fold"
+    level: 2
+    fold: 0
+    epi: 0.14
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/cb367e193d6e4dca9dfec3ba0c7589f6/artifacts/checkpoints/epoch=35-step=8208/checkpoint.ckpt

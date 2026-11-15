@@ -1,0 +1,39 @@
+# IBD-34 Step 4 (fold-0 prediction heatmaps) manifest.
+#
+# The 4 level-1 "high" configs' fold-0 training runs only. Each row carries the
+# fold-0 checkpoint plus the config's tile-filter settings. Unlike the full
+# pipeline manifest, this step only needs the checkpoint URI and the metadata
+# that names the config (``epi`` / ``negative_slides``); predictions are NOT
+# recomputed here -- heatmaps are rendered from the val-fold predictions parquet
+# that the Step-1 valfold job already logged.
+#
+# 4 runs: level 1 (0.52 mpp), label_mode ``high``, fold 0 only.
+runs:
+  - run_id: 882db236bdd54f1a9a5691dcf7c88408
+    run_name: "Training - high - virchow2 - level1 - epi 0 - negative slides - 0 fold"
+    level: 1
+    fold: 0
+    epi: 0.0
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/882db236bdd54f1a9a5691dcf7c88408/artifacts/checkpoints/epoch=11-step=42744/checkpoint.ckpt
+  - run_id: b112cfdb41b64a449125435c4cb3b065
+    run_name: "Training - high - virchow2 - level1 - epi 0 - all slides - 0 fold"
+    level: 1
+    fold: 0
+    epi: 0.0
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/b112cfdb41b64a449125435c4cb3b065/artifacts/checkpoints/epoch=6-step=29071/checkpoint.ckpt
+  - run_id: 7b166771be5949f69404bf4e64a6267e
+    run_name: "Training - high - virchow2 - level1 - epi 0.34 - negative slides - 0 fold"
+    level: 1
+    fold: 0
+    epi: 0.34
+    negative_slides: true
+    checkpoint_uri: mlflow-artifacts:/111/7b166771be5949f69404bf4e64a6267e/artifacts/checkpoints/epoch=12-step=18213/checkpoint.ckpt
+  - run_id: 002874040fd543d1b7e3930d7a6b335c
+    run_name: "Training - high - virchow2 - level1 - epi 0.34 - all slides - 0 fold"
+    level: 1
+    fold: 0
+    epi: 0.34
+    negative_slides: false
+    checkpoint_uri: mlflow-artifacts:/111/002874040fd543d1b7e3930d7a6b335c/artifacts/checkpoints/epoch=17-step=28818/checkpoint.ckpt

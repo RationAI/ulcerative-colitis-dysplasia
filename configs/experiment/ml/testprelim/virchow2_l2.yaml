@@ -1,0 +1,27 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/embeddings/level2_extent224@dataset
+  - _self_
+
+mode: testprelim
+
+# Not used (this step only reads test_preliminary embeddings), but the shared
+# embeddings datamodule interpolates it, so a value is required.
+val_fold: 0
+
+metadata:
+  run_name: "🧪 test_preliminary predictions - ${model_name} - ${dataset.mpp}mpp"
+  description: "Run each trained level-2 model (manifest-driven) over the held-out test_preliminary set; logs per-run predictions parquet."
+
+testprelim:
+  # Same checked-in manifest as Step 1: supplies each run's checkpoint URI.
+  manifest: ml/manifests/level2_high.yaml
+  # Keep every test tile (same keep-all policy as the predict config): these
+  # thresholds are always satisfied, so no tile is dropped during prediction.
+  thresholds:
+    blur: 1.0
+    artifacts: 1.0
+  min_thresholds:
+    epithelium: 0.0

@@ -1,0 +1,12 @@
+defaults:
+  - datasets@train: tiles/labeled
+  - datasets@val: tiles/labeled
+  - datasets@test: tiles/labeled
+  - datasets@predict: tiles/unlabeled
+  - transforms@train.transforms: augment
+  - transforms@val.transforms: normalize
+  - transforms@test.transforms: normalize
+  - transforms@predict.transforms: normalize
+
+batch_size: ???
+num_workers: ???

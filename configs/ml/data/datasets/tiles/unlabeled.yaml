@@ -1,0 +1,3 @@
+_target_: ml.data.datasets.TilesPredict
+uris: ???
+thresholds: ${dataset.thresholds}

@@ -1,0 +1,4 @@
+_target_: ml.data.datasets.Tiles
+uris: ???
+thresholds: ${dataset.thresholds}
+mode: ${label_mode}

@@ -1,0 +1,135 @@
+from collections.abc import Iterable
+from typing import Any, cast
+
+import torch
+from albumentations.core.composition import TransformType
+from albumentations.pytorch import ToTensorV2
+from datasets import Dataset as HFDataset
+from rationai.mlkit.data.datasets import MetaTiledSlides, OpenSlideTilesDataset
+from torch.utils.data import Dataset
+
+from ml.data.datasets.labels import LabelMode, get_label, process_slides
+from ml.data.datasets.utils import filter_tiles
+from ml.typing import Metadata, PredictSample, Sample
+
+
+class SlideTiles[T: Sample | PredictSample](Dataset[T]):
+    def __init__(
+        self,
+        slide_metadata: dict[str, Any],
+        tiles: HFDataset,
+        mode: LabelMode | str | None = None,
+        include_labels: bool = True,
+        transforms: TransformType | None = None,
+    ) -> None:
+        super().__init__()
+        self.slide_tiles = OpenSlideTilesDataset(
+            slide_path=slide_metadata["path"],
+            level=slide_metadata["level"],
+            tile_extent_x=slide_metadata["tile_extent_x"],
+            tile_extent_y=slide_metadata["tile_extent_y"],
+            tiles=tiles,
+        )
+        self.slide_metadata = slide_metadata
+        self.mode = LabelMode(mode) if mode is not None else None
+        self.include_labels = include_labels
+        self.transforms = transforms
+        self.to_tensor = ToTensorV2()
+
+        if self.include_labels and self.mode is None:
+            raise ValueError("Mode must be specified if labels are included.")
+
+    def __len__(self) -> int:
+        return len(self.slide_tiles)
+
+    def __getitem__(self, idx: int) -> T:
+        image = self.slide_tiles[idx]
+        tile = self.slide_tiles.tiles[idx]
+        metadata = Metadata(
+            slide_name=self.slide_metadata["name"],
+            x=tile["x"],
+            y=tile["y"],
+        )
+
+        if self.transforms is not None:
+            image = self.transforms(image=image)["image"]
+
+        image = self.to_tensor(image=image)["image"]
+
+        if not self.include_labels:
+            return cast("T", (image, metadata))
+
+        assert self.mode is not None, "Mode must be specified for labels."
+        label = get_label(tile, self.mode)
+        return cast("T", (image, label, metadata))
+
+
+class Tiles(MetaTiledSlides[Sample]):
+    @property
+    def labels(self) -> torch.Tensor:
+        return torch.stack(
+            [
+                get_label(cast("dict[str, Any]", tile), self.mode)
+                for slide in self.slides
+                for tile in filter_tiles(
+                    self.filter_tiles_by_slide(dict(slide)["id"]), self.thresholds
+                )
+            ]
+        )
+
+    def __init__(
+        self,
+        uris: Iterable[str] | str,
+        mode: LabelMode | str,
+        transforms: TransformType | None = None,
+        thresholds: dict[str, float] | None = None,
+        val_fold: int | None = None,
+        is_val: bool = False,
+    ) -> None:
+        self.transforms = transforms
+        self.mode = LabelMode(mode)
+        self.thresholds = thresholds or {}
+        self.val_fold = val_fold
+        self.is_val = is_val
+        super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
+
+    def generate_datasets(self) -> Iterable[SlideTiles[Sample]]:
+        self.slides = process_slides(self.slides, self.val_fold, self.is_val)
+        return (
+            SlideTiles(
+                slide_metadata=dict(slide),
+                tiles=filter_tiles(
+                    self.filter_tiles_by_slide(dict(slide)["id"]), self.thresholds
+                ),
+                mode=self.mode,
+                include_labels=True,
+                transforms=self.transforms,
+            )
+            for slide in self.slides
+        )
+
+
+class TilesPredict(MetaTiledSlides[PredictSample]):
+    def __init__(
+        self,
+        uris: Iterable[str] | str,
+        transforms: TransformType | None = None,
+        thresholds: dict[str, float] | None = None,
+    ) -> None:
+        self.transforms = transforms
+        self.thresholds = thresholds or {}
+        super().__init__(uris=(uris,) if isinstance(uris, str) else uris)
+
+    def generate_datasets(self) -> Iterable[SlideTiles[PredictSample]]:
+        self.slides = process_slides(self.slides)
+        return (
+            SlideTiles(
+                slide_metadata=dict(slide),
+                tiles=filter_tiles(
+                    self.filter_tiles_by_slide(dict(slide)["id"]), self.thresholds
+                ),
+                include_labels=False,
+                transforms=self.transforms,
+            )
+            for slide in self.slides
+        )

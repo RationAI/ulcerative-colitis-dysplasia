@@ -1,0 +1,25 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/embeddings/level1_extent224@dataset
+  - _self_
+
+mode: testf1
+
+# Not used (this step only reads saved predictions parquets), but the shared
+# embeddings datamodule interpolates it, so a value is required.
+val_fold: 0
+
+metadata:
+  run_name: "🏁 test_preliminary F1 - ${model_name} - ${dataset.mpp}mpp"
+  description: "Apply each model's val-fold threshold to its test_preliminary predictions and aggregate F1 per config (Step 3b, CPU-only)."
+
+testf1:
+  # Step 3a MLflow run holding artifacts/test_preliminary/<train_run_id>/test_predictions.parquet.
+  testprelim_run_id: ???
+  # Step 2 MLflow run holding artifacts/valthreshold/thresholds.parquet.
+  thresholds_run_id: ???
+  # Same checked-in manifest as the other steps: maps run_id -> fold/epi/negative_slides
+  # so each model's F1 can be aggregated into its config over the 5 folds.
+  manifest: ml/manifests/level1_high.yaml

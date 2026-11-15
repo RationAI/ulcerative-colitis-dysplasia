@@ -1,0 +1,3 @@
+_target_: ml.modeling.decode_head.CNNClassifier
+in_features: ???
+out_features: ???

@@ -1,0 +1,32 @@
+# @package _global_
+
+defaults:
+  - _self_
+
+mode: fit
+label_mode: high
+val_fold: ???
+negative_slides: false
+
+trainer:
+  enable_checkpointing: true
+  max_epochs: 50
+  log_every_n_steps: 5
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      save_top_k: 1
+      monitor: validation/loss
+      mode: min
+    - _target_: lightning.pytorch.callbacks.EarlyStopping
+      monitor: validation/loss
+      mode: min 
+      patience: 5
+
+model:
+  lr: 1e-4
+  decode_head:
+    out_features: 1
+
+metadata:
+  run_name: "🏋️‍♂️ Training - ${label_mode} - ${model_name} - ${dataset.tile_extent}px @ ${dataset.mpp}mpp - ${val_fold} fold"
+  description: "Training a model to predict high-grade dysplasia."

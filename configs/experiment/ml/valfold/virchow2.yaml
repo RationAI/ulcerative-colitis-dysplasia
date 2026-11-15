@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/embeddings/level1_extent224@dataset
+  - _self_
+
+mode: valfold
+
+# Not used by valfold (each manifest row carries its own fold / epi /
+# negative_slides), but the shared embeddings datamodule interpolates it, so a
+# value is needed for composition to resolve.
+val_fold: 0
+
+metadata:
+  run_name: "🧪 Val-fold predictions - ${model_name} - ${dataset.mpp}mpp"
+  description: "Run each trained model over its own validation fold (manifest-driven); logs one predictions parquet per run. No F1, no heatmaps."
+
+valfold:
+  # Checked-in manifest with one entry per training run to score on its val
+  # fold (run_id, fold, epi, negative_slides, checkpoint_uri).
+  manifest: ml/manifests/level1_high.yaml

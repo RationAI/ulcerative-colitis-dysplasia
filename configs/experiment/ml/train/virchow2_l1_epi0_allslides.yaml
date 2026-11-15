@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/virchow2
+  - /dataset/embeddings/level1_extent224@dataset
+  - _self_
+
+dataset:
+  min_thresholds:
+    epithelium: 0.0
+
+negative_slides: false
+
+metadata:
+  run_name: "🏋️‍♂️ Training - ${label_mode} - virchow2 - level1 - epi 0 - all slides - ${val_fold} fold"
