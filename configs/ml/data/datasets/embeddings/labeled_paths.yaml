@@ -1,0 +1,9 @@
+#: Same as embeddings/labeled, but sourced from a local dataset directory
+#: instead of MLflow artifact URIs.
+_target_: ml.data.datasets.Embeddings
+paths: ???
+thresholds: ${dataset.thresholds}
+min_thresholds: ${dataset.min_thresholds}
+negative_slides: ${negative_slides}
+mode: ${label_mode}
+label_columns: ${dataset.label_columns}

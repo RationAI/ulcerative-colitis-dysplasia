@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from ml.data.datasets import Embeddings
+from ml.data.sources import embedding_source
 from ml.data.datasets.labels import LabelMode
 from ml.inference import collect, write_parquet
 from ml.valfold import _load_model, _loader_len
@@ -49,11 +50,12 @@ def testprelim_main(config: DictConfig, logger: MLFlowLogger) -> None:
     # ``prob_high`` (Step 3b needs the ground truth to compute F1). All models
     # score the same fixed test set: keep every tile, no mask filtering.
     dataset = Embeddings(
-        uris=[config.dataset.mlflow_uris.embeddings.test_preliminary],
+        **embedding_source(config.dataset, "test_preliminary"),
         mode=mode,
         thresholds=dict(config.testprelim.thresholds),
         min_thresholds=dict(config.testprelim.min_thresholds),
         negative_slides=False,
+        label_columns=config.dataset.get("label_columns", None),
     )
     loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers)
     print(f"test_preliminary tiles: {len(loader)} batches.", flush=True)

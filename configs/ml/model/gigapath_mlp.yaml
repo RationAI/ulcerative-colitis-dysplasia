@@ -1,0 +1,9 @@
+#: Same input and output as gigapath.yaml, with hidden layers added, so the
+#: linear probe and the MLP differ only in capacity.
+_target_: ml.embedding_model.EmbeddingModel
+decode_head:
+  _target_: ml.modeling.decode_head.MlpEmbeddingClassifier
+  in_features: ${dataset.embedding_dim}
+  out_features: ???
+  hidden_dims: [512, 256]
+lr: ???

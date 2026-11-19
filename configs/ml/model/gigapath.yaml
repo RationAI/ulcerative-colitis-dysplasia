@@ -1,0 +1,7 @@
+#: Linear probe: dropout + a single Linear over the frozen embedding.
+_target_: ml.embedding_model.EmbeddingModel
+decode_head:
+  _target_: ml.modeling.decode_head.EmbeddingClassifier
+  in_features: ${dataset.embedding_dim}
+  out_features: ???
+lr: ???

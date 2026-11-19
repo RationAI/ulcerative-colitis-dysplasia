@@ -1,0 +1,44 @@
+#: HunCRC prov-gigapath tile embeddings over the level-2 tiling (tiling_200).
+#: Built by scripts/huncrc/build_embeddings_dataset.py, which symlinks the
+#: per-slide embedding parquets into a slides/ + tiles/ layout that mlkit's
+#: SlidesTilesLoader reads from a local path.
+#:
+#: The cohort lives on its own share, so its paths are set here rather than in
+#: configs/base.yaml: base.yaml stays IKEM's and this branch stays mergeable.
+
+cohort: huncrc
+project_path: /mnt/projects/huncrc_dysplasia
+dataset_dir: ${dataset.project_path}/preprocessing/ml_dataset
+
+#: HunCRC level 2 is ~0.49 mpp. There is no level near 1.55 (nearest is level
+#: 4 at 1.94), so unlike IKEM this cohort has a single scale.
+mpp: 0.49
+level: 2
+tile_extent: 224
+stride: 112
+embedding_dim: 1536
+
+#: The tiling takes annotation column names verbatim from the annotation
+#: files, so HunCRC's differ from IKEM's "LG Dysplasia" / "HG Dysplasia".
+label_columns:
+  low: lowgrade_dysplasia
+  high: highgrade_dysplasia
+  annotation: annotation
+
+#: QC bounds as used for IKEM training. HunCRC additionally has a `clarity`
+#: column with no agreed threshold yet, so it is not filtered on.
+thresholds:
+  blur: 0.25
+  artifacts: 0.25
+
+#: The HunCRC `epithelium` column is the fraction of the FULL tile above
+#: probability 0.5, while IKEM's is the mean probability over the tile's
+#: central half. The two are not comparable, so IKEM's 0.34 / 0.14 thresholds
+#: must not be reused here; no epithelium filtering until it is recalibrated.
+min_thresholds: {}
+
+paths:
+  embeddings:
+    train: ${dataset.dataset_dir}/train
+    test_preliminary: ${dataset.dataset_dir}/test_preliminary
+    test_final: ${dataset.dataset_dir}/test_final

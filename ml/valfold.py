@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from ml.data.datasets import Embeddings
+from ml.data.sources import embedding_source
 from ml.data.datasets.labels import LabelMode
 from ml.inference import collect, write_parquet
 
@@ -90,13 +91,14 @@ def valfold_main(config: DictConfig, logger: MLFlowLogger) -> None:
             flush=True,
         )
         dataset = Embeddings(
-            uris=[config.dataset.mlflow_uris.embeddings.train],
+            **embedding_source(config.dataset, "train"),
             mode=mode,
             thresholds=base_thresholds,
             min_thresholds=min_thresholds,
             negative_slides=negative_slides,
             val_fold=fold,
             is_val=True,
+            label_columns=config.dataset.get("label_columns", None),
         )
         loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers)
         collected = collect(

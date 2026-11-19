@@ -29,20 +29,36 @@ def filter_tiles(
 def filter_negative_origin(
     tiles: HFDataset,
     negative_slides: bool = False,
+    from_negative_slide: bool | None = None,
+    annotation_column: str = "annotation",
 ) -> HFDataset:
     """Restrict which negative tiles are kept when ``negative_slides`` is set.
 
-    A tile counts as negative when it has no annotation (``annotation`` is
-    ``0``). In ``negative_slides`` mode, negatives are kept only from wholly
-    negative slides (``from_negative_slide`` is true); negatives from
-    annotated slides are treated as unknown and dropped. Positive tiles are
-    always kept regardless of origin.
+    A tile counts as negative when it has no annotation
+    (``annotation_column`` is ``0``). In ``negative_slides`` mode, negatives
+    are kept only from slides that are a trusted source of negatives;
+    negatives from annotated slides are treated as unknown and dropped.
+    Positive tiles are always kept regardless of origin.
+
+    ``from_negative_slide`` is the slide's flag. Pass ``None`` (the default)
+    for a tiling that carries a per-tile ``from_negative_slide`` column, as
+    the IKEM tile filtering writes it. Pass the slide's boolean when the flag
+    lives in the slide metadata instead -- the HunCRC embedding parquets are
+    reused as the tiles table and cannot carry an extra column, so there the
+    flag is written into ``slides.parquet``.
     """
     if not negative_slides:
         return tiles
 
-    def keep(tile: dict[str, Any]) -> bool:
-        is_negative = tile["annotation"] == 0
-        return (not is_negative) or tile["from_negative_slide"]
+    if from_negative_slide is None:
 
-    return tiles.filter(keep)
+        def keep(tile: dict[str, Any]) -> bool:
+            is_negative = tile[annotation_column] == 0
+            return (not is_negative) or tile["from_negative_slide"]
+
+        return tiles.filter(keep)
+
+    if from_negative_slide:
+        return tiles
+
+    return tiles.filter(lambda tile: tile[annotation_column] != 0)

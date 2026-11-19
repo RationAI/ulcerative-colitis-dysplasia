@@ -1,0 +1,8 @@
+defaults:
+  - datasets@train: embeddings/labeled_paths
+  - datasets@val: embeddings/labeled_paths
+  - datasets@test: embeddings/labeled_paths
+  - datasets@predict: embeddings/unlabeled_paths
+
+batch_size: ???
+num_workers: ???

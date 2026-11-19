@@ -1,0 +1,12 @@
+# @package _global_
+
+defaults:
+  - /experiment/ml/train/huncrc_embeddings
+  - /ml/model/gigapath@model
+  - _self_
+
+model_name: gigapath-linear
+
+metadata:
+  run_name: "🏋️‍♂️ Training - ${label_mode} - ${model_name} - HunCRC ${dataset.tile_extent}px @ ${dataset.mpp}mpp - ${val_fold} fold"
+  description: "Linear probe on frozen prov-gigapath tile embeddings, binary dysplasia, HunCRC."

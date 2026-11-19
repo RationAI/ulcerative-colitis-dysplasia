@@ -1,0 +1,32 @@
+# @package _global_
+
+defaults:
+  - base
+  - /ml/data/embeddings_paths_datamodule@datamodule
+  - /dataset/embeddings/huncrc_gigapath@dataset
+  - _self_
+
+#: Binary dysplasia (LG or HG) for the first runs: HunCRC has only 37 HG
+#: slides, 27 of them in training, so a HG-only target is reported as a
+#: breakdown rather than trained on its own.
+label_mode: mixed
+
+#: Negatives only from slides the HunCRC Tile Selection card calls safe.
+#: Together with the slide exclusions in build_embeddings_dataset.py this
+#: keeps carcinoma tiles out of the negative class.
+negative_slides: true
+
+datamodule:
+  batch_size: 512
+  num_workers: 8
+
+  train:
+    paths:
+      - ${dataset.paths.embeddings.train}
+    val_fold: ${val_fold}
+
+  val:
+    paths:
+      - ${dataset.paths.embeddings.train}
+    is_val: true
+    val_fold: ${val_fold}

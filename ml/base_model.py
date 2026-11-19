@@ -9,6 +9,7 @@ from torch.optim.optimizer import Optimizer
 from torchmetrics import (
     AUROC,
     Accuracy,
+    AveragePrecision,
     Metric,
     MetricCollection,
     Precision,
@@ -42,8 +43,15 @@ class BaseModel(LightningModule):
         else:
             kwargs["num_labels"] = num_classes
 
+        #: AUPRC takes no ``average``/``num_classes`` in the binary case,
+        #: so it gets its own kwargs rather than the shared ones.
+        auprc_kwargs: dict[str, Any] = {"task": task}
+        if task == "multilabel":
+            auprc_kwargs["num_labels"] = num_classes
+
         metrics: dict[str, Metric | MetricCollection] = {
             "AUC": AUROC(**kwargs, average="none"),
+            "AUPRC": AveragePrecision(**auprc_kwargs),
             "accuracy": Accuracy(**kwargs),
             "precision": Precision(**kwargs, average="none"),
             "recall": Recall(**kwargs, average="none"),
