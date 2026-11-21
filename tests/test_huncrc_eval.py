@@ -13,7 +13,7 @@ from ml.huncrc_eval import (
 )
 
 
-def _data(seed=0, n=3000):
+def _data(seed: int = 0, n: int = 3000) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     y = (rng.random(n) < 0.6).astype(np.int8)
     score = np.round(rng.random(n) * 0.6 + y * 0.3, 2)  # rounding -> many ties
@@ -21,7 +21,7 @@ def _data(seed=0, n=3000):
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
-def test_weighted_metrics_match_sklearn(seed) -> None:
+def test_weighted_metrics_match_sklearn(seed: int) -> None:
     y, s = _data(seed)
     w = np.random.default_rng(seed).integers(0, 4, len(y)).astype(float)
     a, ap = weighted_auroc_ap(y, s, w)
@@ -91,3 +91,45 @@ def test_zero_weight_top_scores_do_not_give_nan() -> None:
         average_precision_score(y, s, sample_weight=w), abs=1e-12
     )
     assert a == pytest.approx(roc_auc_score(y, s, sample_weight=w), abs=1e-12)
+
+
+def test_slide_bootstrap_point_and_degenerate_ci() -> None:
+    from ml.huncrc_eval import slide_bootstrap
+
+    # 4 slides, 3 tiles each; every slide has the same fraction -> CI collapses
+    item_slide = np.repeat(np.arange(4), 3)
+    hit = np.tile([1.0, 0.0, 1.0], 4)
+    p, lo, hi = slide_bootstrap(
+        item_slide, np.zeros(4), lambda w: (w * hit).sum() / w.sum(), 200
+    )
+    assert (
+        p == pytest.approx(2 / 3)
+        and lo == pytest.approx(2 / 3)
+        and hi == pytest.approx(2 / 3)
+    )
+
+
+def test_slide_bootstrap_keeps_strata_sizes() -> None:
+    from ml.huncrc_eval import slide_bootstrap
+
+    strata = np.array([0, 0, 0, 1, 1])
+    seen = []
+
+    def stat(w: np.ndarray) -> float:
+        seen.append((w[:3].sum(), w[3:].sum()))
+        return 0.0
+
+    slide_bootstrap(np.arange(5), strata, stat, n_boot=50)
+    assert all(a == 3 and b == 2 for a, b in seen)
+
+
+def test_slide_bootstrap_ci_brackets_point() -> None:
+    from ml.huncrc_eval import slide_bootstrap
+
+    rng = np.random.default_rng(0)
+    item_slide = np.repeat(np.arange(10), 20)
+    hit = (rng.random(200) < np.repeat(rng.random(10), 20)).astype(float)
+    p, lo, hi = slide_bootstrap(
+        item_slide, np.zeros(10), lambda w: (w * hit).sum() / w.sum(), 500
+    )
+    assert lo < p < hi

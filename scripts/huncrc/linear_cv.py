@@ -167,7 +167,9 @@ def report(fs, pre, runs: Path, n_boot: int, variants, folds) -> dict:
             for seed in range(N_NULL):
                 torch.manual_seed(seed)
                 null.append(
-                    weighted_auroc_ap(y[val], predict(make_head("linear", x.shape[1]), x, val, sc))
+                    weighted_auroc_ap(
+                        y[val], predict(make_head("linear", x.shape[1]), x, val, sc)
+                    )
                 )
             null = np.array(null)
             s_pre = np.load(d / "prelim_scores.npy")

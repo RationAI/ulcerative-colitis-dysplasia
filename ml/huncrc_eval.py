@@ -9,9 +9,14 @@ resample. They agree with sklearn's ``roc_auc_score`` /
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.metrics import roc_curve
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def youden_threshold(y: np.ndarray, score: np.ndarray) -> float:
@@ -144,7 +149,7 @@ def evaluate(
     rng = np.random.default_rng(seed)
     pos_idx = np.flatnonzero(s_y == 1)
     neg_idx = np.flatnonzero(s_y == 0)
-    draws = {k: [] for k in point}
+    draws: dict[str, list[float]] = {k: [] for k in point}
     for _ in range(n_boot):
         c = np.zeros(len(uniq))
         np.add.at(c, rng.choice(pos_idx, len(pos_idx)), 1)
@@ -166,3 +171,36 @@ def evaluate(
         n_neg_slides=len(neg_idx),
     )
     return FoldEval(point=point, ci=ci, n_boot=n_boot)
+
+
+def slide_bootstrap(
+    item_slide: np.ndarray,
+    slide_strata: np.ndarray,
+    stat: Callable[[np.ndarray], float],
+    n_boot: int = 1000,
+    seed: int = 0,
+) -> tuple[float, float, float]:
+    """Point estimate and 95% percentile CI of ``stat`` under a slide bootstrap.
+
+    ``item_slide[i]`` is the slide index (0..S-1) of item ``i`` (a tile, or a
+    slide itself for slide-level statistics); ``slide_strata[s]`` is the
+    stratum of slide ``s``. Slides are resampled with replacement within each
+    stratum, and ``stat(w)`` is called with per-item weights ``w`` (the
+    multiplicity of the item's slide). Returns ``(point, lo, hi)``.
+    """
+    item_slide = np.asarray(item_slide)
+    slide_strata = np.asarray(slide_strata)
+    n_slides = len(slide_strata)
+    point = float(stat(np.ones(len(item_slide))))
+    if n_boot == 0:
+        return point, float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    groups = [np.flatnonzero(slide_strata == g) for g in np.unique(slide_strata)]
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        c = np.zeros(n_slides)
+        for g in groups:
+            np.add.at(c, rng.choice(g, len(g)), 1)
+        draws[b] = stat(c[item_slide])
+    lo, hi = np.nanpercentile(draws, [2.5, 97.5])
+    return point, float(lo), float(hi)
