@@ -133,3 +133,20 @@ def test_slide_bootstrap_ci_brackets_point() -> None:
         item_slide, np.zeros(10), lambda w: (w * hit).sum() / w.sum(), 500
     )
     assert lo < p < hi
+
+
+def test_evaluate_with_mixed_slides() -> None:
+    from ml.huncrc_eval import evaluate
+
+    rng = np.random.default_rng(1)
+    names = np.repeat([f"s{i}" for i in range(8)], 40)
+    # slides 0-4 mix positives and negatives (within-slide negatives), 5-7 negative only
+    y = np.where(np.arange(len(names)) < 200, rng.random(len(names)) < 0.6, 0).astype(
+        np.int8
+    )
+    s = np.clip(rng.normal(0.3 + 0.4 * y, 0.2), 0, 1)
+    ev = evaluate(names, y, s, threshold=0.5, n_boot=100)
+    assert ev.point["pure_slides"] is False
+    assert np.isnan(ev.point["slide_auroc"])
+    assert ev.point["auroc"] == pytest.approx(roc_auc_score(y, s), abs=1e-12)
+    assert (ev.point["n_pos_slides"], ev.point["n_neg_slides"]) == (5, 3)

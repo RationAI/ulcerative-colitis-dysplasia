@@ -73,6 +73,10 @@ class _Sorted:
         return auroc, ap
 
 
+#: public name for repeated weighted metrics on one fixed score ordering
+SortedScores = _Sorted
+
+
 def weighted_auroc_ap(
     y: np.ndarray, score: np.ndarray, w: np.ndarray | None = None
 ) -> tuple[float, float]:
@@ -114,18 +118,24 @@ def evaluate(
 ) -> FoldEval:
     """Point estimates + 95% percentile CI from a bootstrap over SLIDES.
 
-    Slides are resampled with replacement within their slide class (positive /
-    negative slides separately), so every resample has both classes. The
-    threshold is held fixed.
+    Slides are resampled with replacement within their slide class (slides with
+    / without positive tiles separately), so every resample has both classes.
+    The threshold is held fixed. ``slide_auroc`` (mean tile score per slide) is
+    only defined when every slide is pure (only positive or only negative
+    labelled tiles); with within-slide negatives it is NaN.
     """
     uniq, inv = np.unique(names, return_inverse=True)
-    s_names, s_y, s_score = slide_scores(names, y, score)
-    assert (s_names == uniq).all()
+    pos_frac = np.bincount(inv, weights=(y == 1)) / np.bincount(inv)
+    pure = bool(np.all((pos_frac == 0) | (pos_frac == 1)))
+    s_y = (pos_frac > 0).astype(np.int8)
+    if pure:
+        s_names, s_y_pure, s_score = slide_scores(names, y, score)
+        assert (s_names == uniq).all() and (s_y_pure == s_y).all()
+        s_srt = _Sorted(s_y, s_score)
     srt = _Sorted(y, score)
     inv_sorted = inv[srt.order]
     pred_sorted = score[srt.order] >= threshold
     y_sorted = srt.y
-    s_srt = _Sorted(s_y, s_score)
 
     def at(slide_w: np.ndarray) -> dict[str, float]:
         w = slide_w[inv_sorted]
@@ -134,7 +144,7 @@ def evaluate(
         fn = float(w[~pred_sorted & (y_sorted == 1)].sum())
         fp = float(w[pred_sorted & (y_sorted == 0)].sum())
         tn = float(w[~pred_sorted & (y_sorted == 0)].sum())
-        s_auroc, _ = s_srt.metrics(slide_w[s_srt.order])
+        s_auroc = s_srt.metrics(slide_w[s_srt.order])[0] if pure else float("nan")
         return {
             "auroc": auroc,
             "auprc": ap,
@@ -158,7 +168,11 @@ def evaluate(
             draws[k].append(v)
     ci = (
         {
-            k: (float(np.nanpercentile(v, 2.5)), float(np.nanpercentile(v, 97.5)))
+            k: (
+                (float(np.nanpercentile(v, 2.5)), float(np.nanpercentile(v, 97.5)))
+                if np.isfinite(v).any()
+                else (float("nan"), float("nan"))
+            )
             for k, v in draws.items()
         }
         if n_boot
@@ -169,6 +183,7 @@ def evaluate(
         n_slides=len(uniq),
         n_pos_slides=len(pos_idx),
         n_neg_slides=len(neg_idx),
+        pure_slides=pure,
     )
     return FoldEval(point=point, ci=ci, n_boot=n_boot)
 
