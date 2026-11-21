@@ -1,5 +1,8 @@
 """Unit tests for ml.data.huncrc_labels -- synthetic frames only, no real data."""
 
+from pathlib import Path
+from typing import Any
+
 import pandas as pd
 import pytest
 
@@ -140,7 +143,9 @@ def test_attach_split_unknown_slide(table: pd.DataFrame) -> None:
         attach_split(tiles, table)
 
 
-def test_load_tiles_never_opens_other_splits(table: pd.DataFrame, tmp_path) -> None:
+def test_load_tiles_never_opens_other_splits(
+    table: pd.DataFrame, tmp_path: Path
+) -> None:
     for name in table["name"]:
         if name == "020":  # test_final: deliberately absent; opening it would fail
             continue
@@ -154,7 +159,7 @@ def test_load_tiles_never_opens_other_splits(table: pd.DataFrame, tmp_path) -> N
     assert set(out["fold"].dropna()) == {0.0, 1.0}
 
 
-def test_load_tiles_refuses_split_columns(table: pd.DataFrame, tmp_path) -> None:
+def test_load_tiles_refuses_split_columns(table: pd.DataFrame, tmp_path: Path) -> None:
     with pytest.raises(AssertionError):
         load_tiles(tmp_path, table, splits=("train",), columns=("slide_id", "fold"))
 
@@ -162,7 +167,9 @@ def test_load_tiles_refuses_split_columns(table: pd.DataFrame, tmp_path) -> None
 # --- label rules ---------------------------------------------------------
 
 
-def _label(table: pd.DataFrame, rows, **cfg) -> pd.DataFrame:
+def _label(
+    table: pd.DataFrame, rows: list[tuple[str, float, float]], **cfg: Any
+) -> pd.DataFrame:
     return assign_labels(attach_split(_tiles(rows), table), table, LabelConfig(**cfg))
 
 
@@ -279,7 +286,7 @@ def test_summarize(table: pd.DataFrame) -> None:
 # --- multi-slide shards / test_final ------------------------------------
 
 
-def _shards(tmp_path):
+def _shards(tmp_path: Path) -> list[Path]:
     # Shards mix train, test_preliminary and test_final slides (like tiles_0000..0003).
     a = _tiles([("001", 0.3, 0), ("020", 0.9, 0), ("002", 0, 0)])
     b = _tiles([("020", 0, 0), ("010", 0, 0), ("003", 0, 0.1)]).assign(
@@ -290,7 +297,7 @@ def _shards(tmp_path):
     return [tmp_path / "tiles_0000.parquet", tmp_path / "tiles_0001.parquet"]
 
 
-def test_shards_drop_test_final_rows(table: pd.DataFrame, tmp_path) -> None:
+def test_shards_drop_test_final_rows(table: pd.DataFrame, tmp_path: Path) -> None:
     out = load_tiles(
         None, table, ("train", "test_preliminary"), files=_shards(tmp_path)
     )
@@ -300,7 +307,7 @@ def test_shards_drop_test_final_rows(table: pd.DataFrame, tmp_path) -> None:
     assert "020" not in set(labelled["name"])
 
 
-def test_read_split_rows_filters_at_read(table: pd.DataFrame, tmp_path) -> None:
+def test_read_split_rows_filters_at_read(table: pd.DataFrame, tmp_path: Path) -> None:
     from ml.data.huncrc_labels import read_split_rows
 
     path = _shards(tmp_path)[0]
@@ -308,7 +315,7 @@ def test_read_split_rows_filters_at_read(table: pd.DataFrame, tmp_path) -> None:
     assert df["slide_id"].tolist() == ["h001"]
 
 
-def test_per_slide_file_with_foreign_rows(table: pd.DataFrame, tmp_path) -> None:
+def test_per_slide_file_with_foreign_rows(table: pd.DataFrame, tmp_path: Path) -> None:
     for name in table["name"]:
         if name != "020":
             _tiles([(name, 0, 0)]).to_parquet(tmp_path / f"{name}.parquet")
@@ -319,6 +326,8 @@ def test_per_slide_file_with_foreign_rows(table: pd.DataFrame, tmp_path) -> None
 
 
 @pytest.mark.parametrize("splits", [("test_final",), ("train", "test_final")])
-def test_test_final_refused(table: pd.DataFrame, tmp_path, splits) -> None:
+def test_test_final_refused(
+    table: pd.DataFrame, tmp_path: Path, splits: tuple[str, ...]
+) -> None:
     with pytest.raises(PermissionError):
         load_tiles(tmp_path, table, splits)
