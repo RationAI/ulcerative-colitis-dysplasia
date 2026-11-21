@@ -1,13 +1,14 @@
 """Smoke test: scripts/huncrc/sanity_checks.py end to end on a synthetic cache."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from tests.huncrc_synth import build, run_script
 
 
-def test_sanity_checks_script(tmp_path) -> None:
+def test_sanity_checks_script(tmp_path: Path) -> None:
     caches = build(tmp_path)
     out = tmp_path / "sanity.json"
     run_script(
@@ -30,7 +31,7 @@ def test_sanity_checks_script(tmp_path) -> None:
         assert 0.0 <= r["shuffled"][kind]["val_real"]["auroc"] <= 1.0
 
 
-def test_sanity_checks_refuses_other_rules(tmp_path) -> None:
+def test_sanity_checks_refuses_other_rules(tmp_path: Path) -> None:
     caches = build(tmp_path)
     meta = json.loads((caches["train"] / "meta.json").read_text())
     meta["rules_fingerprint"] = "00000000"

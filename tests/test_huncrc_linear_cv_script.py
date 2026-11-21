@@ -1,13 +1,17 @@
 """Smoke test: scripts/huncrc/linear_cv.py train (+ resume) and report."""
 
 import json
+import subprocess
+from pathlib import Path
 
 import numpy as np
 
 from tests.huncrc_synth import build, run_script
 
 
-def _train(caches, runs, *extra):
+def _train(
+    caches: dict[str, Path], runs: Path, *extra: object
+) -> subprocess.CompletedProcess[str]:
     return run_script(
         "linear_cv.py", "train",
         "--train-cache", caches["train"],
@@ -16,7 +20,7 @@ def _train(caches, runs, *extra):
     )  # fmt: skip
 
 
-def test_linear_cv_train_resume_report(tmp_path) -> None:
+def test_linear_cv_train_resume_report(tmp_path: Path) -> None:
     caches = build(tmp_path)
     runs = tmp_path / "runs"
     _train(caches, runs)
@@ -62,7 +66,7 @@ def test_linear_cv_train_resume_report(tmp_path) -> None:
     assert "TEST_PRELIMINARY" in table and "mean" in table
 
 
-def test_linear_cv_needs_matching_rules(tmp_path) -> None:
+def test_linear_cv_needs_matching_rules(tmp_path: Path) -> None:
     caches = build(tmp_path)
     proc_args = (caches, tmp_path / "runs", "--min-coverage", "0.5")
     try:
