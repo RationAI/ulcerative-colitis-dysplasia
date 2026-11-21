@@ -82,3 +82,23 @@ def test_load_squares_rejects_non_rectangles(tmp_path: Path) -> None:
                  "coordinates": [[0, 0], [5, 0], [0, 5], [0, 0]]}]}))  # fmt: skip
     with pytest.raises(ValueError, match="axis-aligned"):
         load_squares(p)
+
+
+def test_tile_flags_definitions() -> None:
+    from ml.data.huncrc_annotations import tile_flags
+
+    def sq(x0: float, x1: float) -> np.ndarray:
+        return np.array([[x0, -100, x1, 1000]], float)
+
+    squares = {
+        "normal": sq(0, 448 * 6),  # covers centres of tiles 0..4
+        "lowgrade_dysplasia": sq(448 * 6, 448 * 7),  # touches the full extent of tile 5
+        "adenocarcinoma": sq(448 * 8, 448 * 10),
+    }
+    x = np.arange(10) * 112
+    f = tile_flags(squares, x, np.zeros(10))
+    assert f["normal"].tolist()[:6] == [True] * 5 + [False]
+    # tile 5's full extent [2240, 3136] overlaps LG [2688, 3136]; tiles <= 4 do not
+    assert f["strict_normal"].tolist()[:6] == [True] * 5 + [False]
+    assert f["carcinoma"].tolist()[8] and not f["carcinoma"].tolist()[7]
+    assert f["carcinoma_any"].tolist()[7] and not f["carcinoma_any"].tolist()[6]

@@ -115,3 +115,37 @@ def tile_coverage(
     """Coverage of every tile by every class in :data:`CLASSES`."""
     q = tile_rects(x, y, region)
     return {c: rect_coverage(squares.get(c), q) for c in CLASSES}
+
+
+#: tolerance for "fully inside" on exact rational coverages
+_FULL = 1 - 1e-9
+
+
+def tile_flags(
+    squares: dict[str, np.ndarray], x: ArrayLike, y: ArrayLike
+) -> dict[str, np.ndarray]:
+    """Step-7 tile definitions, from exact coverage.
+
+    - ``normal``: central half fully inside the union of "normal" squares;
+    - ``strict_normal``: normal and zero LG/HG coverage over the FULL tile;
+    - ``carcinoma``: central half fully inside the union of the carcinoma
+      squares (adenocarcinoma, suspicious_for_invasion, tumor_necrosis);
+    - ``carcinoma_any``: central half touches a carcinoma square.
+    """
+    half, full = tile_rects(x, y, "central_half"), tile_rects(x, y, "full")
+    carc = [squares[c] for c in CARCINOMA_CLASSES if c in squares]
+    carc_rects = np.concatenate(carc) if carc else None
+    lghg = [
+        squares[c]
+        for c in ("lowgrade_dysplasia", "highgrade_dysplasia")
+        if c in squares
+    ]
+    lghg_rects = np.concatenate(lghg) if lghg else None
+    normal = rect_coverage(squares.get("normal"), half) >= _FULL
+    carc_cov = rect_coverage(carc_rects, half)
+    return {
+        "normal": normal,
+        "strict_normal": normal & (rect_coverage(lghg_rects, full) == 0),
+        "carcinoma": carc_cov >= _FULL,
+        "carcinoma_any": carc_cov > 0,
+    }

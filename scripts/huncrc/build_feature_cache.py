@@ -48,6 +48,19 @@ def main() -> None:
     p.add_argument("--splits", nargs="+", default=["train"])
     p.add_argument("--min-coverage", type=float, default=0.0)
     p.add_argument(
+        "--annotations", type=Path, help="dir of <slide>.json squares (Step-8 rules)"
+    )
+    p.add_argument(
+        "--within-slide-negatives",
+        action="store_true",
+        help="strict-normal tiles of positive slides become negatives (Step 8)",
+    )
+    p.add_argument(
+        "--exclude-carcinoma",
+        action="store_true",
+        help="carcinoma tiles never enter training (Step 8)",
+    )
+    p.add_argument(
         "--mode",
         choices=["labelled", "all"],
         default="labelled",
@@ -55,7 +68,11 @@ def main() -> None:
     )
     a = p.parse_args()
     t0 = time.time()
-    config = LabelConfig(min_coverage=a.min_coverage)
+    config = LabelConfig(
+        min_coverage=a.min_coverage,
+        within_slide_negatives=a.within_slide_negatives,
+        exclude_carcinoma=a.exclude_carcinoma,
+    )
     out = build_features(
         a.embeddings,
         slide_table(a.tiling, a.slide_csv),
@@ -63,6 +80,7 @@ def main() -> None:
         config,
         a.cache_root,
         mode=a.mode,
+        annotations=a.annotations,
     )
     fs = load_features(out, expected_config=config, mode=a.mode)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**20

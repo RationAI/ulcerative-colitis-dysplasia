@@ -33,6 +33,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from ml.data import huncrc_labels
+from ml.data.huncrc_annotations import load_squares, tile_flags
 from ml.data.huncrc_labels import (
     LABEL_EXCLUDED,
     LabelConfig,
@@ -168,6 +169,22 @@ def _embedding_block(column: pa.Array | pa.ChunkedArray, dim: int) -> np.ndarray
     return flat.reshape(len(column), dim)
 
 
+def attach_annotation_flags(tiles: pd.DataFrame, annotations: Path) -> pd.DataFrame:
+    """Add normal / strict_normal / carcinoma / carcinoma_any (bool) per tile."""
+    out = tiles.copy()
+    cols = ("normal", "strict_normal", "carcinoma", "carcinoma_any")
+    for c in cols:
+        out[c] = False
+    for name, idx in out.groupby("name").groups.items():
+        sq = load_squares(annotations / f"{name}.json")
+        flags = tile_flags(
+            sq, out.loc[idx, "x"].to_numpy(), out.loc[idx, "y"].to_numpy()
+        )
+        for c in cols:
+            out.loc[idx, c] = flags[c]
+    return out
+
+
 def build_features(
     emb_dir: Path,
     slide_table: pd.DataFrame,
@@ -178,6 +195,7 @@ def build_features(
     batch_size: int = 8192,
     overwrite: bool = False,
     mode: str = "labelled",
+    annotations: Path | None = None,
 ) -> Path:
     """Build (or reuse) the cache for ``splits``; returns its directory.
 
@@ -185,7 +203,13 @@ def build_features(
     ``mode="all"`` keeps every tile of the splits, including excluded ones
     (label -1), and also stores ``reasons``, ``lg`` and ``hg``; it is meant
     for evaluation and is refused by the default loader.
+
+    ``annotations`` (dir of ``<slide>.json`` squares) is required when the label
+    config uses the strict-normal / carcinoma rules (``config.needs_annotations``);
+    the flags are then computed exactly from the squares (see huncrc_annotations).
     """
+    if config.needs_annotations and annotations is None:
+        raise ValueError("this label config needs annotations=<dir of slide JSONs>")
     splits = tuple(sorted(set(splits)))
     wanted = split_slide_ids(slide_table, splits)  # refuses test_final
     key = cache_key(config, splits, wanted["name"], mode)
@@ -196,6 +220,20 @@ def build_features(
 
     # pass 1: labels from cheap columns, per-slide files of `splits` only
     tiles = load_tiles(emb_dir, slide_table, splits)
+    flag_counts: dict[str, int] = {}
+    if config.needs_annotations:
+        assert annotations is not None
+        tiles = attach_annotation_flags(tiles, Path(annotations))
+        flag_counts = {
+            k: int(tiles[k].sum())
+            for k in ("strict_normal", "carcinoma", "carcinoma_any")
+        }
+        flag_counts["carcinoma_and_lghg"] = int(
+            (
+                tiles["carcinoma"]
+                & (np.maximum(tiles[huncrc_labels.LG], tiles[huncrc_labels.HG]) > 0)
+            ).sum()
+        )
     tiles = assign_labels(tiles, slide_table, config)
     if mode == "all":
         keep = np.ones(len(tiles), dtype=bool)
@@ -283,6 +321,16 @@ def build_features(
         "n_neg": int((arrays["labels"] == 0).sum()),
         "tiles": mode,
         "source": str(emb_dir),
+        "annotations": None if annotations is None else str(annotations),
+        "annotation_flag_counts": flag_counts,
+        "n_by_reason": {
+            str(k): int(v)
+            for k, v in tiles["reason"].fillna("labelled").value_counts().items()
+        },
+        "n_neg_by_source": {
+            str(k): int(v)
+            for k, v in kept["neg_source"].dropna().value_counts().items()
+        },
         "split_fold_source": "slides.parquet",
     }
     (tmp / "meta.json").write_text(json.dumps(meta, indent=2))

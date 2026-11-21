@@ -331,3 +331,73 @@ def test_test_final_refused(
 ) -> None:
     with pytest.raises(PermissionError):
         load_tiles(tmp_path, table, splits)
+
+
+# --- Step 8: within-slide negatives and carcinoma ---------------------------
+
+
+def _ws_tiles(rows: list[tuple[str, float, bool, bool]]) -> pd.DataFrame:
+    """rows: (slide, LG coverage, strict_normal, carcinoma)."""
+    t = _tiles([(n, lg, 0.0) for n, lg, _, _ in rows])
+    t["strict_normal"] = [r[2] for r in rows]
+    t["carcinoma"] = [r[3] for r in rows]
+    return t
+
+
+def test_within_slide_negatives_and_carcinoma(table: pd.DataFrame) -> None:
+    rows = [
+        ("001", 0.4, False, False),  # dysplasia -> pos
+        ("001", 0.0, True, False),  # strict normal on a positive slide -> neg
+        ("001", 0.0, False, False),  # unannotated on a positive slide -> not_safe
+        ("001", 0.3, False, True),  # dysplasia inside carcinoma -> carcinoma wins
+        ("003", 0.0, True, False),  # CRC slide WITHOUT LG/HG: not positive -> not_safe
+        ("003", 0.0, False, True),  # carcinoma tile -> carcinoma
+        ("002", 0.0, True, False),  # safe slide: negative, source safe_slide
+        ("043", 0.0, True, False),  # excluded slide stays excluded
+        ("043", 0.5, False, False),  # (043 has LG, but excluded)
+    ]
+    cfg = LabelConfig(within_slide_negatives=True, exclude_carcinoma=True)
+    out = assign_labels(attach_split(_ws_tiles(rows), table), table, cfg)
+    assert out["label"].tolist() == [1, 0, -1, -1, -1, -1, 0, -1, -1]
+    assert out["reason"].tolist() == [
+        None, None, "not_safe_slide", "carcinoma", "not_safe_slide", "carcinoma",
+        None, "excluded_slide", "excluded_slide",
+    ]  # fmt: skip
+    assert out["neg_source"].tolist() == [
+        None, "positive_slide_normal", None, None, None, None, "safe_slide", None, None,
+    ]  # fmt: skip
+
+
+def test_new_rules_off_by_default_and_need_columns(table: pd.DataFrame) -> None:
+    rows = [("001", 0.0, True, False), ("003", 0.0, False, True)]
+    out = assign_labels(attach_split(_ws_tiles(rows), table), table, LabelConfig())
+    assert out["label"].tolist() == [-1, -1]  # flags ignored without the options
+    with pytest.raises(KeyError, match="strict_normal"):
+        assign_labels(
+            attach_split(_tiles([("001", 0, 0)]), table),
+            table,
+            LabelConfig(within_slide_negatives=True),
+        )
+    with pytest.raises(KeyError, match="carcinoma"):
+        assign_labels(
+            attach_split(_tiles([("001", 0, 0)]), table),
+            table,
+            LabelConfig(exclude_carcinoma=True),
+        )
+
+
+def test_strict_normal_with_dysplasia_is_rejected(table: pd.DataFrame) -> None:
+    bad = attach_split(_ws_tiles([("001", 0.2, True, False)]), table)
+    with pytest.raises(ValueError, match="strict-normal"):
+        assign_labels(bad, table, LabelConfig(within_slide_negatives=True))
+
+
+def test_default_fingerprint_unchanged() -> None:
+    from ml.data.huncrc_labels import rules_fingerprint
+
+    # the caches built so far are keyed r2b3fa61d; the optional rules must not change it
+    assert rules_fingerprint(LabelConfig()) == "2b3fa61d"
+    assert rules_fingerprint(LabelConfig(within_slide_negatives=True)) != "2b3fa61d"
+    assert rules_fingerprint(LabelConfig(exclude_carcinoma=True)) != rules_fingerprint(
+        LabelConfig(within_slide_negatives=True)
+    )

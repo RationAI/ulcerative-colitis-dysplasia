@@ -323,3 +323,26 @@ def test_all_tile_cache_still_refuses_test_final(emb_dir: Path, tmp_path: Path) 
 def test_bad_mode() -> None:
     with pytest.raises(ValueError, match="mode"):
         cache_key(LabelConfig(), ("train",), ["001"], mode="some")
+
+
+def test_within_slide_cache_needs_annotations(emb_dir: Path, tmp_path: Path) -> None:
+    cfg = LabelConfig(within_slide_negatives=True, exclude_carcinoma=True)
+    with pytest.raises(ValueError, match="annotations"):
+        build_features(emb_dir, _table(), ("train",), cfg, tmp_path, dim=DIM)
+
+
+def test_within_slide_cache_from_synthetic_cohort(tmp_path: Path) -> None:
+    from tests.huncrc_synth import NEW_RULES, build
+
+    c = build(tmp_path)
+    old = load_features(c["train"], expected_config=LabelConfig())
+    new = load_features(c["train_within_slide"], expected_config=NEW_RULES)
+    assert c["train_within_slide"] != c["train"]
+    # positives unchanged (no carcinoma on train slides); extra negatives come only
+    # from the strict-normal tiles of adenoma (positive) train slides
+    assert new.meta["n_pos"] == old.meta["n_pos"]
+    src = new.meta["n_neg_by_source"]
+    assert src["safe_slide"] == old.meta["n_neg"]
+    # 60 tiles per slide: strict normal = tiles 32..59 on each of 10 adenoma train slides
+    assert src["positive_slide_normal"] == 10 * 28
+    assert new.meta["annotation_flag_counts"]["carcinoma_and_lghg"] == 0

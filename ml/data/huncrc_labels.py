@@ -51,7 +51,12 @@ SPLIT_COLUMNS = ("split", "fold")
 REASON_EXCLUDED_SLIDE = "excluded_slide"
 REASON_AMBIGUOUS = "ambiguous_coverage"
 REASON_NOT_SAFE = "not_safe_slide"
-REASONS = (REASON_EXCLUDED_SLIDE, REASON_AMBIGUOUS, REASON_NOT_SAFE)
+REASON_CARCINOMA = "carcinoma"
+REASONS = (REASON_EXCLUDED_SLIDE, REASON_CARCINOMA, REASON_AMBIGUOUS, REASON_NOT_SAFE)
+
+#: per-tile annotation flags needed by the optional rules (see huncrc_annotations)
+STRICT_NORMAL = "strict_normal"
+CARCINOMA = "carcinoma"
 
 LABEL_POSITIVE = 1
 LABEL_NEGATIVE = 0
@@ -74,6 +79,16 @@ class LabelConfig:
         default_factory=lambda: frozenset({"negative", "non_neoplastic_lesion"})
     )
     exclude_serrated: bool = True
+    #: Step 8: "strict normal" tiles (central half fully inside normal squares, no
+    #: LG/HG anywhere in the tile) of POSITIVE slides become negatives.
+    within_slide_negatives: bool = False
+    #: Step 8: carcinoma tiles (central half fully inside adenocarcinoma /
+    #: suspicious_for_invasion / tumor_necrosis squares) never enter training.
+    exclude_carcinoma: bool = False
+
+    @property
+    def needs_annotations(self) -> bool:
+        return self.within_slide_negatives or self.exclude_carcinoma
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.min_coverage <= 1.0:
@@ -95,6 +110,11 @@ def rules_fingerprint(config: LabelConfig) -> str:
         "safe_categories": sorted(config.safe_categories),
         "exclude_serrated": bool(config.exclude_serrated),
     }
+    #: optional rules enter the fingerprint only when switched on, so caches built
+    #: under the default rules keep their keys
+    for opt in ("within_slide_negatives", "exclude_carcinoma"):
+        if getattr(config, opt):
+            payload[opt] = True
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:8]
 
@@ -259,13 +279,25 @@ def safe_slide_names(slide_table: pd.DataFrame, config: LabelConfig) -> set[str]
 def assign_labels(
     tiles: pd.DataFrame, slide_table: pd.DataFrame, config: LabelConfig | None = None
 ) -> pd.DataFrame:
-    """Return ``tiles`` plus ``coverage``, ``label`` (1/0/-1) and ``reason``.
+    """Return ``tiles`` plus ``coverage``, ``label`` (1/0/-1), ``reason``, ``neg_source``.
 
-    ``tiles`` needs ``name`` (see :func:`attach_split`), ``LG`` and ``HG``.
-    ``reason`` is None for training tiles.
+    ``tiles`` needs ``name`` (see :func:`attach_split`), ``LG`` and ``HG``; with
+    ``within_slide_negatives`` also ``strict_normal``, with ``exclude_carcinoma``
+    also ``carcinoma`` (bool columns). ``reason`` is None for training tiles;
+    ``neg_source`` is "safe_slide" / "positive_slide_normal" for negatives.
+
+    Precedence: excluded slide > carcinoma (if excluded) > positive > ambiguous >
+    negative on a safe slide > strict-normal negative on a positive slide (if
+    enabled) > not_safe_slide. A positive slide is a non-excluded slide with any
+    tile of LG/HG coverage > 0 in ``tiles``, so pass whole slides.
     """
     config = config or LabelConfig()
-    for col in ("name", LG, HG):
+    required = ["name", LG, HG]
+    if config.within_slide_negatives:
+        required.append(STRICT_NORMAL)
+    if config.exclude_carcinoma:
+        required.append(CARCINOMA)
+    for col in required:
         if col not in tiles.columns:
             raise KeyError(f"tiles is missing column {col!r}")
     lg = tiles[LG].to_numpy(dtype=float)
@@ -293,19 +325,43 @@ def assign_labels(
     label = np.full(len(tiles), LABEL_EXCLUDED, dtype=np.int8)
     reason = np.full(len(tiles), None, dtype=object)
 
+    source = np.full(len(tiles), None, dtype=object)
+
     # Assigned in reverse precedence so the strongest rule wins.
     reason[~has_dysplasia & ~is_safe] = REASON_NOT_SAFE
+    if config.within_slide_negatives:
+        strict = tiles[STRICT_NORMAL].to_numpy(dtype=bool)
+        if (strict & has_dysplasia).any():
+            raise ValueError("a strict-normal tile has LG/HG coverage")
+        pos_slide = (
+            pd.Series(has_dysplasia, index=tiles.index)
+            .groupby(tiles["name"])
+            .transform("any")
+        ).to_numpy(dtype=bool) & ~is_excluded
+        wsn = strict & pos_slide & ~is_safe & ~has_dysplasia
+        label[wsn] = LABEL_NEGATIVE
+        reason[wsn] = None
+        source[wsn] = "positive_slide_normal"
     neg = ~has_dysplasia & is_safe
     label[neg] = LABEL_NEGATIVE
+    reason[neg] = None
+    source[neg] = "safe_slide"
     reason[ambiguous] = REASON_AMBIGUOUS
     label[positive] = LABEL_POSITIVE
+    reason[positive] = None
+    if config.exclude_carcinoma:
+        carc = tiles[CARCINOMA].to_numpy(dtype=bool)
+        label[carc] = LABEL_EXCLUDED
+        reason[carc] = REASON_CARCINOMA
     label[is_excluded] = LABEL_EXCLUDED
     reason[is_excluded] = REASON_EXCLUDED_SLIDE
+    source[label != LABEL_NEGATIVE] = None
 
     out = tiles.copy()
     out["coverage"] = coverage
     out["label"] = label
     out["reason"] = pd.Series(reason, index=tiles.index, dtype=object)
+    out["neg_source"] = pd.Series(source, index=tiles.index, dtype=object)
     assert ((out["label"] == LABEL_EXCLUDED) == out["reason"].notna()).all()
     return out
 

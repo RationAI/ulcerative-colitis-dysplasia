@@ -7,6 +7,7 @@ it would fail). 16-d embeddings with a class signal so heads can learn.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -15,8 +16,41 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ml.data.huncrc_annotations import rect_coverage, tile_rects
 from ml.data.huncrc_features import build_features
 from ml.data.huncrc_labels import HG, LG, LabelConfig, load_slide_table
+
+
+#: Step-8 label rules (within-slide negatives, carcinoma excluded)
+NEW_RULES = LabelConfig(within_slide_negatives=True, exclude_carcinoma=True)
+STEP = 448  # level-0 px between tile origins (stride 112 at downsample 4)
+
+
+def _square(name: str, i0: int, i1: int) -> dict[str, object]:
+    """Annotation item spanning tiles i0..i1-1 of a 1-row tile grid (level 0)."""
+    x0, x1, y0, y1 = STEP * i0, STEP * i1, -100, 1000
+    return {
+        "name": name,
+        "type": "polygon",
+        "coordinates": [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]],
+    }
+
+
+def annotation_items(category: str, n_tiles: int) -> list[dict[str, object]]:
+    """Annotation squares for one synthetic slide.
+
+    LG on the first half of adenoma slides with normal two tiles past it (strict
+    normal), carcinoma on the first half of CRC slides, normal on safe slides.
+    """
+    h = n_tiles // 2
+    if category == "adenoma":
+        return [
+            _square("lowgrade_dysplasia", 0, h),
+            _square("normal", h + 2, n_tiles + 2),
+        ]
+    if category == "CRC":
+        return [_square("adenocarcinoma", 0, h), _square("normal", h + 2, n_tiles + 2)]
+    return [_square("normal", 10, n_tiles + 2)]
 
 
 DIM = 16
@@ -65,19 +99,30 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
     table = load_slide_table(slides, csv)
     emb = tmp / "emb"
     emb.mkdir(parents=True)
+    ann = tmp / "annotations"
+    ann.mkdir(parents=True)
     direction = rng.normal(size=DIM)
     for name, split, _, cat in rows:
         if split == "test_final":
             continue
-        lg = np.zeros(n_tiles)
-        if cat == "adenoma":
-            lg[: n_tiles // 2] = rng.uniform(0.05, 1.0, n_tiles // 2)
+        items = annotation_items(cat, n_tiles)
+        (ann / f"{name}.json").write_text(json.dumps({"items": items}))
+        h = n_tiles // 2
+        # the LG square of annotation_items() as a level-0 rect (adenoma slides only)
+        lg_rects = (
+            np.array([[0.0, -100.0, float(STEP * h), 1000.0]])
+            if cat == "adenoma"
+            else np.zeros((0, 4))
+        )
+        xs = np.arange(n_tiles) * 112
+        # LG coverage of the central half, exactly as the tiling computes it
+        lg = rect_coverage(lg_rects, tile_rects(xs, np.zeros(n_tiles), "central_half"))
         pos = (lg > 0).astype(float)
         e = rng.normal(size=(n_tiles, DIM)) + np.outer(pos * 1.5, direction)
         pd.DataFrame(
             {
                 "slide_id": f"id{name}",
-                "x": np.arange(n_tiles) * 112,
+                "x": xs,
                 "y": 0,
                 LG: lg,
                 HG: 0.0,
@@ -93,6 +138,10 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
     out["test_preliminary_all"] = build_features(
         emb, table, ("test_preliminary",), LabelConfig(), cache, dim=DIM, mode="all"
     )
+    out["train_within_slide"] = build_features(
+        emb, table, ("train",), NEW_RULES, cache, dim=DIM, annotations=ann
+    )
+    out["annotations"] = ann
     out["tiling"] = tmp / "tiling"
     out["slide_csv"] = tmp / "slide_level_annotations.csv"
     return out
