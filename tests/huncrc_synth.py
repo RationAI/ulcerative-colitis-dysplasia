@@ -24,13 +24,13 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def cohort() -> list[tuple[str, str, float | None, str]]:
-    rows = []
+    rows: list[tuple[str, str, float | None, str]] = []
     n = 1
     for fold in range(5):
         for cat in ("adenoma", "adenoma", "negative"):
             rows.append((f"{n:03d}", "train", float(fold), cat))
             n += 1
-    for cat in ("adenoma", "adenoma", "negative", "non_neoplastic_lesion"):
+    for cat in ("adenoma", "adenoma", "negative", "non_neoplastic_lesion", "CRC"):
         rows.append((f"{n:03d}", "test_preliminary", None, cat))
         n += 1
     rows.append((f"{n:03d}", "test_final", None, "negative"))
@@ -52,10 +52,16 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
         {
             "slideID": [r[0] for r in rows],
             "CATEGORY": [r[3] for r in rows],
-            "Polyp type": "Not_applicable",
+            "Polyp type": [
+                "hyperplastic" if r[3] == "non_neoplastic_lesion" else "Not_applicable"
+                for r in rows
+            ],
         },
         dtype=str,
     )
+    (tmp / "tiling" / "slides").mkdir(parents=True)
+    slides.to_parquet(tmp / "tiling" / "slides" / "slides.parquet")
+    csv.to_csv(tmp / "slide_level_annotations.csv", index=False)
     table = load_slide_table(slides, csv)
     emb = tmp / "emb"
     emb.mkdir(parents=True)
@@ -84,10 +90,15 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
         s: build_features(emb, table, (s,), LabelConfig(), cache, dim=DIM)
         for s in ("train", "test_preliminary")
     }
+    out["test_preliminary_all"] = build_features(
+        emb, table, ("test_preliminary",), LabelConfig(), cache, dim=DIM, mode="all"
+    )
+    out["tiling"] = tmp / "tiling"
+    out["slide_csv"] = tmp / "slide_level_annotations.csv"
     return out
 
 
-def run_script(name: str, *args: str) -> subprocess.CompletedProcess:
+def run_script(name: str, *args: object) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "huncrc" / name), *map(str, args)],
