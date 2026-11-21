@@ -15,7 +15,7 @@ from __future__ import annotations
 import copy
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -27,7 +27,7 @@ from ml.modeling.decode_head.mlp_classifier import MlpEmbeddingClassifier
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 
 @dataclass(frozen=True)
@@ -193,8 +193,8 @@ def fit_epochs(
     scaler: Scaler,
     config: TrainConfig,
     class_weights: tuple[float, float] | None = None,
-    resume: dict | None = None,
-):
+    resume: dict[str, Any] | None = None,
+) -> Iterator[tuple[int, nn.Module, dict[str, Any], float]]:
     """Yield ``(epoch, model, state, train_loss)`` after every epoch.
 
     Resumable: each epoch's shuffling and dropout are seeded from

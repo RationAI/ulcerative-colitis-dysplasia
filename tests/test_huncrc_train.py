@@ -1,12 +1,14 @@
 """Synthetic tests for ml.huncrc_train."""
 
+import io
+
 import numpy as np
 import pytest
 
 from ml.huncrc_train import Scaler, TrainConfig, binary_metrics, predict, train_head
 
 
-def _data(n=2000, d=16, seed=0):
+def _data(n: int = 2000, d: int = 16, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     y = (rng.random(n) < 0.4).astype(np.int8)
     x = rng.normal(size=(n, d)).astype(np.float32) * 3 + 5
@@ -75,9 +77,7 @@ def test_fit_epochs_resume_is_exact() -> None:
             torch.testing.assert_close(a[2]["model"][k], b[2]["model"][k])
 
 
-def _roundtrip(obj):
-    import io
-
+def _roundtrip(obj: object) -> io.BytesIO:
     import torch
 
     buf = io.BytesIO()

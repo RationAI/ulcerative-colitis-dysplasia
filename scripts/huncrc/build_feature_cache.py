@@ -47,13 +47,24 @@ def main() -> None:
     p.add_argument("--cache-root", type=Path, required=True)
     p.add_argument("--splits", nargs="+", default=["train"])
     p.add_argument("--min-coverage", type=float, default=0.0)
+    p.add_argument(
+        "--mode",
+        choices=["labelled", "all"],
+        default="labelled",
+        help="labelled = label 0/1 tiles (training); all = every tile (evaluation)",
+    )
     a = p.parse_args()
     t0 = time.time()
     config = LabelConfig(min_coverage=a.min_coverage)
     out = build_features(
-        a.embeddings, slide_table(a.tiling, a.slide_csv), a.splits, config, a.cache_root
+        a.embeddings,
+        slide_table(a.tiling, a.slide_csv),
+        a.splits,
+        config,
+        a.cache_root,
+        mode=a.mode,
     )
-    fs = load_features(out, expected_config=config)
+    fs = load_features(out, expected_config=config, mode=a.mode)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**20
     size = fs.features.nbytes / 2**30
     print(

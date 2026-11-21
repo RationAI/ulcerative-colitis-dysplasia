@@ -1,5 +1,8 @@
 """Unit tests for ml.data.huncrc_features -- synthetic parquets only."""
 
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -45,7 +48,7 @@ def _table() -> pd.DataFrame:
 
 
 #: per slide: (LG, HG) per tile
-COVER = {
+COVER: dict[str, list[tuple[float, float]]] = {
     "001": [(0.4, 0), (0, 0), (0.0, 0.2), (0, 0), (0.1, 0)],  # 3 pos, 2 not_safe
     "002": [(0, 0)] * 4,  # 4 neg
     "003": [(0, 0), (0, 0.9)],  # 1 pos, 1 not_safe
@@ -61,7 +64,7 @@ def _emb(name: str, i: int) -> list[float]:
 
 
 @pytest.fixture
-def emb_dir(tmp_path):
+def emb_dir(tmp_path: Path) -> Path:
     d = tmp_path / "emb"
     d.mkdir()
     for name, cover in COVER.items():
@@ -80,7 +83,7 @@ def emb_dir(tmp_path):
     return d
 
 
-def test_build_and_load(emb_dir, tmp_path) -> None:
+def test_build_and_load(emb_dir: Path, tmp_path: Path) -> None:
     t = _table()
     fs = get_features(
         emb_dir, t, ("train",), LabelConfig(), tmp_path / "cache", dim=DIM, batch_size=2
@@ -103,7 +106,7 @@ def test_build_and_load(emb_dir, tmp_path) -> None:
     assert "043" not in set(fs.slide_names)
 
 
-def test_test_preliminary_folds_are_minus_one(emb_dir, tmp_path) -> None:
+def test_test_preliminary_folds_are_minus_one(emb_dir: Path, tmp_path: Path) -> None:
     fs = get_features(
         emb_dir, _table(), ("test_preliminary",), LabelConfig(), tmp_path, dim=DIM
     )
@@ -111,14 +114,14 @@ def test_test_preliminary_folds_are_minus_one(emb_dir, tmp_path) -> None:
     assert fs.labels.tolist() == [0, 0, 0]
 
 
-def test_test_final_refused(emb_dir, tmp_path) -> None:
+def test_test_final_refused(emb_dir: Path, tmp_path: Path) -> None:
     with pytest.raises(PermissionError):
         build_features(
             emb_dir, _table(), ("train", "test_final"), LabelConfig(), tmp_path, dim=DIM
         )
 
 
-def test_cache_reused_and_keyed_by_min_coverage(emb_dir, tmp_path) -> None:
+def test_cache_reused_and_keyed_by_min_coverage(emb_dir: Path, tmp_path: Path) -> None:
     t = _table()
     a = build_features(emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM)
     for f in emb_dir.glob("*.parquet"):
@@ -130,7 +133,7 @@ def test_cache_reused_and_keyed_by_min_coverage(emb_dir, tmp_path) -> None:
     assert k.startswith("mc0.25-") and k != a.name
 
 
-def test_min_coverage_drops_ambiguous(emb_dir, tmp_path) -> None:
+def test_min_coverage_drops_ambiguous(emb_dir: Path, tmp_path: Path) -> None:
     fs = get_features(
         emb_dir, _table(), ("train",), LabelConfig(min_coverage=0.3), tmp_path, dim=DIM
     )
@@ -139,7 +142,7 @@ def test_min_coverage_drops_ambiguous(emb_dir, tmp_path) -> None:
     assert fs.slide_names.tolist() == ["001", "002", "002", "002", "002", "003"]
 
 
-def test_wrong_dim_raises(emb_dir, tmp_path) -> None:
+def test_wrong_dim_raises(emb_dir: Path, tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="embedding length"):
         build_features(
             emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM + 1
@@ -147,7 +150,7 @@ def test_wrong_dim_raises(emb_dir, tmp_path) -> None:
     assert not any(p.name.startswith("mc") for p in tmp_path.iterdir())
 
 
-def test_foreign_rows_in_slide_file_raise(emb_dir, tmp_path) -> None:
+def test_foreign_rows_in_slide_file_raise(emb_dir: Path, tmp_path: Path) -> None:
     df = pd.read_parquet(emb_dir / "001.parquet")
     df.loc[1, "slide_id"] = "h020"
     df.to_parquet(emb_dir / "001.parquet")
@@ -155,7 +158,7 @@ def test_foreign_rows_in_slide_file_raise(emb_dir, tmp_path) -> None:
         build_features(emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM)
 
 
-def test_nan_embedding_raises(emb_dir, tmp_path) -> None:
+def test_nan_embedding_raises(emb_dir: Path, tmp_path: Path) -> None:
     df = pd.read_parquet(emb_dir / "002.parquet")
     df.at[0, "embedding"] = [float("nan")] * DIM
     df.to_parquet(emb_dir / "002.parquet")
@@ -175,7 +178,7 @@ def test_nan_embedding_raises(emb_dir, tmp_path) -> None:
         {"exclude_serrated": False},
     ],
 )
-def test_rule_parameters_change_fingerprint_and_key(change) -> None:
+def test_rule_parameters_change_fingerprint_and_key(change: dict[str, Any]) -> None:
     from ml.data.huncrc_labels import rules_fingerprint
 
     t = _table()
@@ -194,7 +197,7 @@ def test_fingerprint_ignores_set_order() -> None:
     assert rules_fingerprint(a) == rules_fingerprint(b)
 
 
-def test_versions_change_key(monkeypatch) -> None:
+def test_versions_change_key(monkeypatch: pytest.MonkeyPatch) -> None:
     from ml.data import huncrc_features, huncrc_labels
 
     t = _table()
@@ -207,7 +210,7 @@ def test_versions_change_key(monkeypatch) -> None:
     assert "-r" in k0 and "-v" in k0
 
 
-def test_changed_rule_does_not_reuse_cache(emb_dir, tmp_path) -> None:
+def test_changed_rule_does_not_reuse_cache(emb_dir: Path, tmp_path: Path) -> None:
     t = _table()
     a = build_features(emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM)
     for f in emb_dir.glob("*.parquet"):
@@ -225,7 +228,7 @@ def test_changed_rule_does_not_reuse_cache(emb_dir, tmp_path) -> None:
     assert build_features(emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM) == a
 
 
-def test_load_with_wrong_expected_config_raises(emb_dir, tmp_path) -> None:
+def test_load_with_wrong_expected_config_raises(emb_dir: Path, tmp_path: Path) -> None:
     from ml.data.huncrc_features import StaleCacheError
 
     d = build_features(emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM)
@@ -234,7 +237,7 @@ def test_load_with_wrong_expected_config_raises(emb_dir, tmp_path) -> None:
         load_features(d, expected_config=LabelConfig(min_coverage=0.5))
 
 
-def test_renamed_or_old_cache_is_refused(emb_dir, tmp_path) -> None:
+def test_renamed_or_old_cache_is_refused(emb_dir: Path, tmp_path: Path) -> None:
     import json
 
     from ml.data.huncrc_features import StaleCacheError
@@ -257,3 +260,66 @@ def test_renamed_or_old_cache_is_refused(emb_dir, tmp_path) -> None:
     (d / "meta.json").write_text(json.dumps(meta))
     with pytest.raises(StaleCacheError):
         build_features(emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM)
+
+
+# --- all-tile evaluation caches --------------------------------------------
+
+
+def test_all_tile_cache_keeps_every_tile(emb_dir: Path, tmp_path: Path) -> None:
+    t = _table()
+    d = build_features(
+        emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM, mode="all"
+    )
+    assert "-all-" in d.name
+    fs = load_features(d, expected_config=LabelConfig(), mode="all")
+    n_all = sum(len(COVER[n]) for n in ("001", "002", "003", "043"))
+    assert len(fs) == n_all and fs.features.shape == (n_all, DIM)
+    # 001: 3 pos + 2 not_safe; 002: 4 neg; 003: 1 pos + 1 not_safe; 043: 2 excluded
+    assert fs.labels.tolist() == [1, -1, 1, -1, 1, 0, 0, 0, 0, -1, 1, -1, -1]
+    assert fs.reasons is not None
+    assert fs.reasons.tolist() == (
+        ["", "not_safe_slide", "", "not_safe_slide", ""]
+        + [""] * 4
+        + ["not_safe_slide", ""]
+        + ["excluded_slide"] * 2
+    )
+    assert fs.reasons is not None and fs.lg is not None and fs.hg is not None
+    np.testing.assert_allclose(fs.lg[:5], [0.4, 0, 0, 0, 0.1])
+    np.testing.assert_allclose(fs.hg[:5], [0, 0, 0.2, 0, 0])
+    # the labelled rows are the same vectors as in the labelled cache
+    lab = get_features(emb_dir, t, ("train",), LabelConfig(), tmp_path, dim=DIM)
+    np.testing.assert_array_equal(np.asarray(fs.features)[fs.labels >= 0], lab.features)
+
+
+def test_all_tile_cache_refused_by_default_loader(
+    emb_dir: Path, tmp_path: Path
+) -> None:
+    d = build_features(
+        emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM, mode="all"
+    )
+    with pytest.raises(ValueError, match="'all'-tile cache"):
+        load_features(d)
+    lab = build_features(
+        emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM
+    )
+    assert lab != d
+    with pytest.raises(ValueError, match="'labelled'-tile cache"):
+        load_features(lab, mode="all")
+
+
+def test_all_tile_cache_still_refuses_test_final(emb_dir: Path, tmp_path: Path) -> None:
+    with pytest.raises(PermissionError):
+        build_features(
+            emb_dir,
+            _table(),
+            ("test_final",),
+            LabelConfig(),
+            tmp_path,
+            dim=DIM,
+            mode="all",
+        )
+
+
+def test_bad_mode() -> None:
+    with pytest.raises(ValueError, match="mode"):
+        cache_key(LabelConfig(), ("train",), ["001"], mode="some")
