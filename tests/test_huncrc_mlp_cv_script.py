@@ -71,7 +71,7 @@ def test_mlp_variants_and_combined_report(tmp_path: Path) -> None:
 def test_submit_job_dry_run(smoke: bool) -> None:
     args = ["--dry-run", *(["--smoke"] if smoke else [])]
     out = run_script("submit_mlp_job.py", *args).stdout
-    assert "public=False cpu=8 memory=32Gi shm=16Gi" in out
+    assert "public=True cpu=8 memory=32Gi shm=16Gi" in out  # public data by default
     assert (
         "git clone --depth 1 --single-branch -b feature/huncrc-tile-classifier "
         "https://github.com/RationAI/ulcerative-colitis-dysplasia.git workdir"
@@ -88,13 +88,18 @@ def test_submit_job_dry_run(smoke: bool) -> None:
     assert f"tee -a {res}step9_mlp{'_smoke' if smoke else ''}/run.log" in out
 
 
+def test_submit_job_secure_opt_out() -> None:
+    out = run_script("submit_mlp_job.py", "--dry-run", "--secure").stdout
+    assert "public=False" in out
+
+
 @pytest.mark.parametrize(
     "args",
     [
         ["--dry-run", "--cache-root", "/home/jovyan/huncrc_cache"],
         ["--dry-run", "--out", "/tmp/results"],
         ["--dry-run", "--other-runs", "/home/jovyan/step8/runs"],
-        ["--smoke"],  # USERNAME still "..." -> refused before any submission
+        ["--dry-run", "--variants", "A-unw"],
     ],
 )
 def test_submit_job_refuses(args: list[str]) -> None:

@@ -16,9 +16,15 @@ test_final is never read and nothing goes to MLflow.
 
     # print the pod script, submit nothing (does not need kube_jobs)
     python scripts/huncrc/submit_mlp_job.py --smoke --dry-run
-    # submit (needs the kube-jobs package, see the "job" dependency group)
+    # submit (needs kube_jobs >= 7c2a73c and KUBECONFIG with the kuba-cluster context)
     python scripts/huncrc/submit_mlp_job.py --smoke     # fold 0, 1 epoch, 300 tiles/slide
     python scripts/huncrc/submit_mlp_job.py             # full: D E x 5 folds x 10 epochs
+
+Public cluster (kuba-cluster) by default: HunCRC is public TCIA data. ``--secure``
+submits to the secure cluster (kubas-cluster) with the secure storage set
+instead. kube_jobs takes the username from the Kubernetes identity and appends
+it to the job name (``<job-name>-<username>``); ``job logs`` / ``job delete``
+need that full name and, for the public cluster, ``--public``.
 """
 
 from __future__ import annotations
@@ -27,8 +33,7 @@ import argparse
 import shlex
 
 
-USERNAME = "..."  # fill in: your RationAI username (job label "created_by")
-PUBLIC = False  # False = secure cluster (kubas-cluster), True = kuba-cluster
+PUBLIC = True  # True = kuba-cluster (public data), False (--secure) = kubas-cluster
 
 REPO_URL = "https://github.com/RationAI/ulcerative-colitis-dysplasia.git"
 BRANCH = "feature/huncrc-tile-classifier"
@@ -49,14 +54,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--username", default=USERNAME)
-    p.add_argument("--job-name", help="default: ...-huncrc-mlp[-smoke]")
+    p.add_argument(
+        "--job-name",
+        help="default: ...-huncrc-mlp[-smoke]; kube_jobs appends -<username>",
+    )
     p.add_argument("--branch", default=BRANCH)
     p.add_argument(
-        "--public",
-        action=argparse.BooleanOptionalAction,
+        "--secure",
+        dest="public",
+        action="store_false",
         default=PUBLIC,
-        help="cluster, which also selects the matching kube_jobs storage set",
+        help="submit to the secure cluster (kubas-cluster) with the secure storage set",
     )
     p.add_argument(
         "--cache-root", default=DEFAULT_CACHE, help="feature caches (reused/rebuilt)"
@@ -101,8 +109,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             p.error(f"{d}: runs dirs must be on mounted storage (/mnt/...)")
     if not set(a.variants) <= {"B", "C", "D", "E"}:
         p.error("--variants must be among B C D E")
-    if not a.dry_run and a.username in ("", "..."):
-        p.error("set USERNAME in this file or pass --username")
     return a
 
 
@@ -156,15 +162,21 @@ def main(argv: list[str] | None = None) -> None:
     if a.dry_run:
         return
 
+    import inspect
+
     from kube_jobs import storage, submit_job
 
+    if "username" in inspect.signature(submit_job).parameters:
+        raise SystemExit(
+            "this kube_jobs predates 7c2a73c and needs username=; use the installed "
+            "/opt/venv one (python on PATH) or upgrade the pin"
+        )
     # DATA mounts /mnt/data/Public (read-only; the HunCRC slide-level CSV),
     # PROJECTS mounts /mnt/projects (read-write; embeddings, tiling, annotations,
     # caches and results). The secure and public sets mount the same paths.
     mounts = storage.public if a.public else storage.secure
     submit_job(
         job_name=a.job_name,
-        username=a.username,
         public=a.public,
         cpu=CPU,
         memory=MEMORY,
