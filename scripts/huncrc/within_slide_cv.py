@@ -1,4 +1,4 @@
-"""Step 8: linear head with within-slide negatives, 5-fold CV + Step-7 evaluation.
+"""Steps 8-9: linear / MLP head with within-slide negatives, 5-fold CV + Step-7 eval.
 
 Labels (cache built with ``build_feature_cache.py --within-slide-negatives
 --exclude-carcinoma``): positives = dysplasia tiles; negatives = safe-slide
@@ -9,11 +9,14 @@ excluded slides never train. Negatives are capped per slide in TRAINING only
     # resumable: finished (variant, fold) runs are skipped, an interrupted run
     # resumes after its last complete epoch
     python scripts/huncrc/within_slide_cv.py train --train-cache C --prelim-all-cache P --runs R
-    # report (works on partial results), next to the saved Step-4a models (A)
+    # report (works on partial results), next to the saved Step-4a models (A);
+    # --other-runs adds variants trained elsewhere (e.g. Step-8 B/C next to D/E)
     python scripts/huncrc/within_slide_cv.py report --train-cache C --prelim-all-cache P \
-        --runs R --a-runs <step4a linear_cv dir> --annotations A --tiling T --slide-csv CSV
+        --runs R [--other-runs R2 ...] [--a-runs <step4a linear_cv dir>] \
+        --annotations A --tiling T --slide-csv CSV
 
-Variants: B = new labels, unweighted BCE; C = new labels, class-balanced BCE.
+Variants (all on the new labels): B = linear, unweighted BCE; C = linear,
+class-balanced BCE; D = MLP 1536-512-256-1, unweighted; E = MLP, class-balanced.
 A-unw / A-bal = the Step-4a variants (a) / (b), reused without retraining.
 Same protocol as Step 4a: scaler from the training folds only, up to N epochs,
 best epoch = max validation AUPRC, Youden threshold on the validation fold,
@@ -49,7 +52,13 @@ from ml.huncrc_train import (
 from ml.huncrc_wsmetrics import prelim_masks, prelim_report
 
 
-VARIANTS = {"B": None, "C": "balanced"}
+VARIANTS = {  # name -> (head, class weighting)
+    "B": ("linear", None),
+    "C": ("linear", "balanced"),
+    "D": ("mlp", None),
+    "E": ("mlp", "balanced"),
+}
+DEFAULT_TRAIN_VARIANTS = ["B", "C"]  # Step 8; Step 9 passes --variants D E
 A_VARIANTS = {"A-unw": "a", "A-bal": "b"}
 NEW_RULES = LabelConfig(within_slide_negatives=True, exclude_carcinoma=True)
 OLD_RULES = LabelConfig()
@@ -188,7 +197,8 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
     else:
         sc = Scaler.fit(x, tr)
         np.savez(d / "scaler.npz", mean=sc.mean, std=sc.std)
-    cw = balanced_weights(y[tr]) if VARIANTS[variant] == "balanced" else None
+    head, weighting = VARIANTS[variant]
+    cw = balanced_weights(y[tr]) if weighting == "balanced" else None
     cfg = TrainConfig(epochs=a.epochs, seed=k)
     done = sorted(int(p.stem.split("_")[1]) for p in d.glob("epoch_??.pt"))
     resume = (
@@ -196,10 +206,10 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
     )
     log(
         f"{variant}/fold{k}: start ({'resume after epoch ' + str(resume['epoch'] + 1) if resume else 'new'}); "
-        f"train {cnt['train']}, val {cnt['val']}, class weights {cw}"
+        f"head {head}, train {cnt['train']}, val {cnt['val']}, class weights {cw}"
     )
     t0 = time.time()
-    for ep, model, state, loss in fit_epochs("linear", x, y, tr, sc, cfg, cw, resume):
+    for ep, model, state, loss in fit_epochs(head, x, y, tr, sc, cfg, cw, resume):
         s = predict(model, x, val, sc)
         auroc, auprc = weighted_auroc_ap(y[val], s)
         save(s, d / f"epoch_{ep:02d}_val.npy", "npy")
@@ -222,7 +232,7 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
     ]
     best = int(np.argmax([h["val_auprc"] for h in hist]))
     thr = youden_threshold(y[val], np.load(d / f"epoch_{best:02d}_val.npy"))
-    model = make_head("linear", x.shape[1], cfg.dropout)
+    model = make_head(head, x.shape[1], cfg.dropout)
     model.load_state_dict(
         torch.load(d / f"epoch_{best:02d}.pt", weights_only=False)["model"]
     )
@@ -234,6 +244,7 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
     save(
         {
             "variant": variant,
+            "head": head,
             "fold": k,
             "best_epoch": best + 1,
             "threshold": thr,
@@ -251,10 +262,11 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
 # ------------------------------------------------------------------------- report
 
 
-def _model(d: Path, dim: int) -> tuple[torch.nn.Module, Scaler, dict]:
+def _model(d: Path, dim: int, head: str) -> tuple[torch.nn.Module, Scaler, dict]:
     done = json.loads((d / "done.json").read_text())
+    head = done.get("head", head)  # Step-8 / Step-4a runs predate the field
     z = np.load(d / "scaler.npz")
-    m = make_head("linear", dim)
+    m = make_head(head, dim)
     m.load_state_dict(
         torch.load(d / f"epoch_{done['best_epoch'] - 1:02d}.pt", weights_only=False)[
             "model"
@@ -270,20 +282,29 @@ def report(a) -> dict:
     src = neg_source(fs, safe)
     old_label = (fs.labels == 1) | (src == "safe_slide")  # Step-4a label set
     masks = prelim_masks(pre, a.slide_table, a.annotations)
-    sets = {name: a.a_runs / v for name, v in A_VARIANTS.items()} | {
-        v: a.runs / v for v in VARIANTS
-    }
-    out: dict[str, Any] = {"model_sets": {}, "counts": {}}
-    for name, root in sets.items():
+    sets: dict[str, tuple[Path, str]] = {}
+    if a.a_runs:
+        sets = {name: (a.a_runs / v, "linear") for name, v in A_VARIANTS.items()}
+    else:
+        log("report: no --a-runs, Step-4a models (A-unw, A-bal) skipped")
+    for v, (head, _) in VARIANTS.items():
+        roots = [r / v for r in [a.runs, *a.other_runs] if (r / v).is_dir()]
+        if len(roots) > 1:
+            raise SystemExit(f"variant {v} found in several runs dirs: {roots}")
+        if roots:
+            sets[v] = (roots[0], head)
+    out: dict[str, Any] = {"model_sets": {}, "counts": {}, "sources": {}}
+    for name, (root, head) in sets.items():
         folds = [k for k in range(5) if (root / f"fold{k}" / "done.json").is_file()]
         if not folds:
             log(f"report: {name}: no finished folds, skipped")
             continue
-        R: dict[str, Any] = {"folds": folds, "val": {}}
+        R: dict[str, Any] = {"folds": folds, "val": {}, "head": head}
+        out["sources"][name] = str(root)
         prelim_scores, thrs = [], []
         for k in folds:
             d = root / f"fold{k}"
-            model, sc, done = _model(d, fs.features.shape[1])
+            model, sc, done = _model(d, fs.features.shape[1], head)
             val = (
                 np.load(d / "val_rows.npy")
                 if name in VARIANTS
@@ -316,7 +337,7 @@ def report(a) -> dict:
                     weighted_auroc_ap(
                         fs.labels[val],
                         predict(
-                            make_head("linear", fs.features.shape[1]),
+                            make_head(done.get("head", head), fs.features.shape[1]),
                             fs.features,
                             val,
                             sc,
@@ -417,6 +438,11 @@ def render(rep: dict) -> str:
     ]
     for label, key in rows:
         L.append(f"{label:<52}" + " | ".join(f"{n}: {ms(n, key)}" for n in names))
+    L.append("\nmodel sets (head, runs dir)")
+    for n in names:
+        L.append(
+            f"{n:<7} {rep['model_sets'][n].get('head', '?'):<7} {rep.get('sources', {}).get(n, '?')}"
+        )
     return "\n".join(L)
 
 
@@ -429,7 +455,11 @@ def main() -> None:
     p.add_argument("--tiling", type=Path, required=True)
     p.add_argument("--slide-csv", type=Path, required=True)
     p.add_argument(
-        "--variants", nargs="+", default=list(VARIANTS), choices=list(VARIANTS)
+        "--variants",
+        nargs="+",
+        default=DEFAULT_TRAIN_VARIANTS,
+        choices=list(VARIANTS),
+        help="train: B/C linear, D/E MLP (default: B C)",
     )
     p.add_argument("--folds", nargs="+", type=int, default=list(range(5)))
     p.add_argument("--epochs", type=int, default=10)
@@ -447,7 +477,16 @@ def main() -> None:
         "--threads", type=int, default=None, help="default: the cgroup CPU quota"
     )
     p.add_argument(
-        "--a-runs", type=Path, help="report: Step-4a linear_cv runs dir (variants a, b)"
+        "--a-runs",
+        type=Path,
+        help="report: Step-4a linear_cv runs dir (variants a, b); omit to skip A",
+    )
+    p.add_argument(
+        "--other-runs",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="report: more runs dirs holding B/C/D/E variants (e.g. Step 8)",
     )
     p.add_argument(
         "--annotations", type=Path, help="report: dir of <slide>.json squares"
@@ -479,8 +518,8 @@ def main() -> None:
                 train_one(fs, pre, v, k, a.runs / v / f"fold{k}", a)
         log("train: all requested runs finished")
     else:
-        if not (a.a_runs and a.annotations):
-            p.error("report needs --a-runs and --annotations")
+        if not a.annotations:
+            p.error("report needs --annotations")
         rep = report(a)
         out = a.out or a.runs
         out.mkdir(parents=True, exist_ok=True)

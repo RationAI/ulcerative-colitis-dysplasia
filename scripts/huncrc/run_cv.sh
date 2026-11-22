@@ -1,28 +1,42 @@
 #!/usr/bin/env bash
-# Step 8 driver: within-slide-negative linear head, 5-fold CV + Step-7 report.
+# Steps 8-9 driver: within-slide-negative heads (B/C linear, D/E MLP), 5-fold CV
+# + Step-7 report. Also the entry point of the Kubernetes job (submit_mlp_job.py).
 #
-#   bash scripts/huncrc/run_step8.sh train    # all (variant, fold) runs, resumable
-#   bash scripts/huncrc/run_step8.sh report   # report/table from whatever is finished
+#   bash scripts/huncrc/run_cv.sh train    # all (variant, fold) runs, resumable
+#   bash scripts/huncrc/run_cv.sh report   # report/table from whatever is finished
+#   VARIANTS="D E" bash scripts/huncrc/run_cv.sh train   # Step 9 MLP
 #
 # Every path can be overridden through the environment (defaults below). The
 # feature caches are (re)built only if missing, so the script also works after a
 # restart that cleared them. test_final is never read; nothing goes to MLflow.
 set -euo pipefail
 
-cmd="${1:?usage: run_step8.sh train|report}"
+cmd="${1:?usage: run_cv.sh train|report}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PRE="${PRE:-/mnt/projects/huncrc_dysplasia/preprocessing}"
 SLIDE_CSV="${SLIDE_CSV:-/mnt/data/Public/Public/colorectum/TCIA_HunCRC/slide_level_annotations.csv}"
 CACHE_ROOT="${CACHE_ROOT:-/home/jovyan/huncrc_cache}"
 OUT="${OUT:-/home/jovyan/huncrc_tile_classifier_results/step8_within_slide_cv}"
-A_RUNS="${A_RUNS:-/home/jovyan/huncrc_tile_classifier_results/2026-11-21/step4a_linear_cv}"
+A_RUNS="${A_RUNS-/home/jovyan/huncrc_tile_classifier_results/2026-11-21/step4a_linear_cv}"  # "" or missing dir = skip A
+OTHER_RUNS="${OTHER_RUNS:-}"              # report: more runs dirs, e.g. the Step-8 B/C runs
 EPOCHS="${EPOCHS:-10}"
 NEG_CAP="${NEG_CAP:-5000}"
 VARIANTS="${VARIANTS:-B C}"
 FOLDS="${FOLDS:-0 1 2 3 4}"
 N_BOOT="${N_BOOT:-1000}"
 SMOKE_TILES="${SMOKE_TILES:-}"            # e.g. 300 for a quick end-to-end check
-THREADS="${THREADS:-$(nproc)}"
+cgroup_cpus() {  # CPU quota of this container; nproc shows the node's cores in a pod
+  local q p
+  if read -r q p < /sys/fs/cgroup/cpu.max 2>/dev/null && [[ "$q" != max ]]; then
+    echo $(( (q + p - 1) / p ))                                   # cgroup v2
+  elif q=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us 2>/dev/null) && (( q > 0 )); then
+    p=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)                 # cgroup v1
+    echo $(( (q + p - 1) / p ))
+  else
+    nproc
+  fi
+}
+THREADS="${THREADS:-$(cgroup_cpus)}"
 
 export OMP_NUM_THREADS="$THREADS" MKL_NUM_THREADS="$THREADS" OPENBLAS_NUM_THREADS="$THREADS"
 export PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}"
@@ -31,7 +45,8 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 
 mkdir -p "$OUT" "$CACHE_ROOT"
 cd "$REPO"
-echo "[$(ts)] run_step8.sh $cmd: threads=$THREADS out=$OUT cache_root=$CACHE_ROOT git=$(git rev-parse --short HEAD)$(git diff --quiet -- ml scripts || echo '+dirty')"
+echo "[$(ts)] run_cv.sh $cmd: threads=$THREADS out=$OUT cache_root=$CACHE_ROOT git=$(git rev-parse --short HEAD)$(git diff --quiet -- ml scripts || echo '+dirty')"
+echo "[$(ts)] host=$(hostname) nproc=$(nproc) cgroup cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo n/a) memory.max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo n/a) variants=$VARIANTS folds=$FOLDS epochs=$EPOCHS"
 
 common=(--tiling "$PRE/tiling_200" --slide-csv "$SLIDE_CSV")
 build() {  # prints the cache dir; reuses an existing cache with the same key
@@ -53,9 +68,13 @@ case "$cmd" in
       --epochs "$EPOCHS" --neg-cap "$NEG_CAP" "${smoke[@]}"
     ;;
   report)
-    "$PY" scripts/huncrc/within_slide_cv.py report "${args[@]}" --a-runs "$A_RUNS" \
+    extra=()
+    if [[ -n "$A_RUNS" && -d "$A_RUNS" ]]; then extra+=(--a-runs "$A_RUNS"); else echo "[$(ts)] no Step-4a runs at '$A_RUNS', A skipped"; fi
+    # shellcheck disable=SC2086  # OTHER_RUNS is a space-separated list
+    [[ -n "$OTHER_RUNS" ]] && extra+=(--other-runs $OTHER_RUNS)
+    "$PY" scripts/huncrc/within_slide_cv.py report "${args[@]}" "${extra[@]}" \
       --annotations "$PRE/annotations" --n-boot "$N_BOOT" --out "$OUT"
     ;;
   *) echo "unknown command $cmd" >&2; exit 2 ;;
 esac
-echo "[$(ts)] run_step8.sh $cmd: finished"
+echo "[$(ts)] run_cv.sh $cmd: finished"
