@@ -15,9 +15,11 @@ cmd="${1:?usage: run_cv.sh train|report}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PRE="${PRE:-/mnt/projects/huncrc_dysplasia/preprocessing}"
 SLIDE_CSV="${SLIDE_CSV:-/mnt/data/Public/Public/colorectum/TCIA_HunCRC/slide_level_annotations.csv}"
-CACHE_ROOT="${CACHE_ROOT:-/home/jovyan/huncrc_cache}"
-OUT="${OUT:-/home/jovyan/huncrc_tile_classifier_results/step8_within_slide_cv}"
-A_RUNS="${A_RUNS-/home/jovyan/huncrc_tile_classifier_results/2026-11-21/step4a_linear_cv}"  # "" or missing dir = skip A
+# Results and caches live on the project share, never in the home directory.
+SHARE_TC="/mnt/projects/huncrc_dysplasia/tile_classifier"
+CACHE_ROOT="${CACHE_ROOT:-$SHARE_TC/cache}"
+OUT="${OUT:?set OUT to a new results dir, e.g. OUT=$SHARE_TC/<step>; train resumes in an existing one}"
+A_RUNS="${A_RUNS-}"                       # report: Step-4a runs dir; "" or missing dir = skip A
 OTHER_RUNS="${OTHER_RUNS:-}"              # report: more runs dirs, e.g. the Step-8 B/C runs
 EPOCHS="${EPOCHS:-10}"
 NEG_CAP="${NEG_CAP:-5000}"
