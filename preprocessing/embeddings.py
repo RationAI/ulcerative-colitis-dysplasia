@@ -60,7 +60,7 @@ def load_tile_encoder(model: FoundationModel) -> torch.nn.Module:
     match model:
         case FoundationModel.PROV_GIGAPATH:
             return timm.create_model(
-                "hf_hub:prov-gigapath/prov-gigapath",
+                "hf-hub:prov-gigapath/prov-gigapath",
                 pretrained=True,
             )
         case FoundationModel.UNI:
@@ -97,7 +97,7 @@ def load_tile_encoder(model: FoundationModel) -> torch.nn.Module:
             )
         case FoundationModel.VIRCHOW2:
             return timm.create_model(
-                "hf_hub:paige-ai/Virchow2",
+                "hf-hub:paige-ai/Virchow2",
                 pretrained=True,
                 mlp_layer=SwiGLUPacked,
                 act_layer=torch.nn.SiLU,
@@ -177,7 +177,8 @@ def main(config: DictConfig, logger: Logger | None = None) -> None:
     assert logger is not None, "Need logger"
     assert isinstance(logger, MLFlowLogger), "Need MLFlowLogger"
 
-    login(config.token)
+    if config.token is not None:
+        login(config.token)
     model = FoundationModel(config.model)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -245,9 +246,8 @@ def main(config: DictConfig, logger: Logger | None = None) -> None:
                 local_path=str(embeddings_path),
                 artifact_path="embeddings",
             )
-            break
 
-        print("DEBUG: Script reached the end.")
+    print(f"Done. Embeddings written to {output_folder}")
 
 
 if __name__ == "__main__":

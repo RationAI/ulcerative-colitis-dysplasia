@@ -2,7 +2,6 @@
 
 token: ${oc.env:HF_TOKEN,null}
 model: prov-gigapath
-level: 2
 
 tiling_uris: 
  - mlflow-artifacts:/111/44ba485dd6b0401a9d3d5720378b95b2/artifacts/tiling/train
@@ -20,6 +19,8 @@ dataloader:
 
 metadata:
   experiment_name: Ulcerative Colitis Dysplasia
-  run_name: '📂 Tile Embeddings'
+  run_name: '📂 Tile Embeddings - ${model}'
   description: 'Ulcerative Colitis Dysplasia Tile Embeddings' 
   user: Borisim
+  hyperparams:
+    model: ${model}
