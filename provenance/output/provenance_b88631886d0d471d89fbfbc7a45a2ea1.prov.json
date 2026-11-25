@@ -1,0 +1,976 @@
+{
+  "bundle": {
+    "storage:b88631886d0d471d89fbfbc7a45a2ea1": {
+      "prefix": {
+        "storage": "http://localhost:8083/api/v1/documents/",
+        "meta": "http://localhost:8083/api/v1/documents/meta/",
+        "schema": "https://schema.org/",
+        "cpm": "https://www.commonprovenancemodel.org/ns/cpm#",
+        "blank": "https://openprovenance.org/blank/",
+        "xsd": "http://www.w3.org/2001/XMLSchema#",
+        "gen": "http://rationai.org/prov/gen#",
+        "dct": "http://purl.org/dc/terms/",
+        "prov": "http://www.w3.org/ns/prov#",
+        "sosa": "http://www.w3.org/ns/sosa/",
+        "mlkit": "http://rationai.org/prov/mlkit#"
+      },
+      "entity": {
+        "gen:model_b88631886d0d471d89fbfbc7a45a2ea1": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Entity"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:CreativeWork"
+            }
+          ],
+          "schema:name": [
+            "model of 📊 Training (provenance, 2-slide subset)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/b88631886d0d471d89fbfbc7a45a2ea1/artifacts/checkpoints/emb-dysplasia-epoch=01/MLmodel"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/b88631886d0d471d89fbfbc7a45a2ea1/artifacts/checkpoints/emb-dysplasia-epoch=01/MLmodel"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "dct:description": [
+            "Trained model produced by 📊 Training (provenance, 2-slide subset) (artifact hint 'mlmodel')"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_2385fd8162d746188c5c3092e2a1b605_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_211_4ef2fb98adb8432b9ee224fc5bdd5231_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_5d812b44fbc94d3cbf6391a1683297e6_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_780b3e37719c4ecf855ac060cde18357_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_d9af25eaf0044e6d911887c69cc8e18b_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_212_dd529985c45546bd81bbf8bf2e2cdb8b_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_2385fd8162d746188c5c3092e2a1b605": {
+          "schema:name": [
+            "🔀 Split dataset (provenance, subset)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 🔀 Split dataset (provenance, subset)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_4ef2fb98adb8432b9ee224fc5bdd5231": {
+          "schema:name": [
+            "Dataset_huncrc-cohort_1.0.0"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of Dataset_huncrc-cohort_1.0.0"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_5d812b44fbc94d3cbf6391a1683297e6": {
+          "schema:name": [
+            "🧻 Tissue masks (provenance, subset)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 🧻 Tissue masks (provenance, subset)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_780b3e37719c4ecf855ac060cde18357": {
+          "schema:name": [
+            "🧩 Tiling (provenance, subset — reused from production tiling_200)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 🧩 Tiling (provenance, subset — reused from production tiling_200)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_bc5160ba96064230b375cb15fdf78320": {
+          "schema:name": [
+            "📂 Dataset Creation (provenance, subset)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 📂 Dataset Creation (provenance, subset)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_d9af25eaf0044e6d911887c69cc8e18b": {
+          "schema:name": [
+            "🎭 QC (provenance, subset — masks reused from production)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 🎭 QC (provenance, subset — masks reused from production)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:input_mlflow_artifacts_168_0e3d8a66a7084e0f8a492ba6186c1a80_artifacts": {
+          "schema:name": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "sosa:Sample"
+            }
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_dd529985c45546bd81bbf8bf2e2cdb8b": {
+          "schema:name": [
+            "🧬 Embeddings (provenance, subset — reused from production gigapath run)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of 🧬 Embeddings (provenance, subset — reused from production gigapath run)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:output_0e3d8a66a7084e0f8a492ba6186c1a80": {
+          "schema:name": [
+            "QC output (200 slides, huncrc)"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Collection"
+            }
+          ],
+          "dct:description": [
+            "Output of QC output (200 slides, huncrc)"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ]
+        },
+        "gen:forward_b88631886d0d471d89fbfbc7a45a2ea1": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "cpm:ForwardConnector"
+            }
+          ],
+          "schema:name": [
+            "mlflow-artifacts:/212/b88631886d0d471d89fbfbc7a45a2ea1/artifacts/checkpoints/emb-dysplasia-epoch=01/MLmodel"
+          ],
+          "schema:url": [
+            "mlflow-artifacts:/212/b88631886d0d471d89fbfbc7a45a2ea1/artifacts/checkpoints/emb-dysplasia-epoch=01/MLmodel"
+          ]
+        }
+      },
+      "activity": {
+        "gen:run_b88631886d0d471d89fbfbc7a45a2ea1": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-03T19:28:17.297000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-03T19:29:34.610000+00:00"
+          ],
+          "schema:name": [
+            "📊 Training (provenance, 2-slide subset)"
+          ],
+          "schema:identifier": [
+            "b88631886d0d471d89fbfbc7a45a2ea1"
+          ],
+          "dct:description": [
+            "2-slide provenance test chain (train: 059, test_final: 155)"
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/b88631886d0d471d89fbfbc7a45a2ea1/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_checkpoint_dir\": \"/mnt/projects/huncrc_dysplasia/training/embeddings_huncrc2prov\", \"cfg_cluster_k_null_reason\": \"both subset slides are annotated; the serial-sections filter would leave single-class splits (undefined AUC)\", \"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_embeddings_source\": \"/mnt/projects/huncrc_dysplasia/preprocessing/embeddings/prov-gigapath\", \"cfg_experiment_config\": \"embeddings_huncrc200\", \"cfg_max_epochs\": \"2\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_provenance_dataset_registration_run_id\": \"4ef2fb98adb8432b9ee224fc5bdd5231\", \"cfg_provenance_embeddings_run_id\": \"dd529985c45546bd81bbf8bf2e2cdb8b\", \"cfg_provenance_qc_run_id\": \"d9af25eaf0044e6d911887c69cc8e18b\", \"cfg_provenance_split_run_id\": \"2385fd8162d746188c5c3092e2a1b605\", \"cfg_provenance_tiling_run_id\": \"780b3e37719c4ecf855ac060cde18357\", \"cfg_provenance_tissue_run_id\": \"5d812b44fbc94d3cbf6391a1683297e6\", \"cfg_subset_slides\": \"[\\\"059\\\", \\\"155\\\"]\", \"cfg_tiling_source\": \"/mnt/projects/huncrc_dysplasia/preprocessing/tiling_200\", \"cfg_val_split_reason\": \"test_preliminary is empty on the 2-slide subset — val uses test_final\", \"columns\": \"[\\\"split\\\", \\\"slides\\\", \\\"tiles\\\", \\\"dysplasia_tiles\\\"]\", \"cpu_requested\": \"4\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"32.0\", \"num_columns\": \"4\", \"num_rows\": \"2\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_2385fd8162d746188c5c3092e2a1b605": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-02T11:57:24.156000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-02T11:57:28.030000+00:00"
+          ],
+          "schema:name": [
+            "🔀 Split dataset (provenance, subset)"
+          ],
+          "schema:identifier": [
+            "2385fd8162d746188c5c3092e2a1b605"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/2385fd8162d746188c5c3092e2a1b605/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_degenerate_two_slide_fallback\": \"True\", \"cfg_n_folds\": \"5\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_random_state\": \"42\", \"cfg_split_sizes_test_final\": \"1\", \"cfg_split_sizes_test_preliminary\": \"0\", \"cfg_split_sizes_train\": \"1\", \"cfg_splits_test_final\": \"0.15\", \"cfg_splits_test_preliminary\": \"0.15\", \"cfg_splits_train\": \"0.7\", \"cfg_subset_slides\": \"[\\\"155\\\", \\\"59\\\"]\", \"columns\": \"[\\\"slide_id\\\", \\\"case_id\\\", \\\"slide_path\\\", \\\"tiles_path\\\", \\\"fold\\\"]\", \"cpu_requested\": \"2\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"files_existing\": \"1\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"8.0\", \"num_columns\": \"5\", \"num_rows\": \"1\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-139-generic-x86_64-with-glibc2.39\", \"path_column\": \"slide_path\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_4ef2fb98adb8432b9ee224fc5bdd5231": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-01T21:32:34.140000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-01T21:32:39.360000+00:00"
+          ],
+          "schema:name": [
+            "Dataset_huncrc-cohort_1.0.0"
+          ],
+          "schema:identifier": [
+            "4ef2fb98adb8432b9ee224fc5bdd5231"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/211/4ef2fb98adb8432b9ee224fc5bdd5231/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cpu_requested\": \"2\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"dataset_root\": \"/mnt/projects/huncrc_dysplasia/preprocessing\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"4.0\", \"num_samples\": \"200\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"python_version\": \"3.12.3\", \"source_csv\": \"dataset_split.csv\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_5d812b44fbc94d3cbf6391a1683297e6": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-02T12:21:08.601000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-02T13:42:34.319000+00:00"
+          ],
+          "schema:name": [
+            "🧻 Tissue masks (provenance, subset)"
+          ],
+          "schema:identifier": [
+            "5d812b44fbc94d3cbf6391a1683297e6"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/5d812b44fbc94d3cbf6391a1683297e6/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_level\": \"3\", \"cfg_max_concurrent\": \"4\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_subset_slides\": \"[\\\"155\\\", \\\"059\\\"]\", \"columns\": \"[\\\"slide_id\\\", \\\"case_id\\\", \\\"slide_path\\\", \\\"tiles_path\\\"]\", \"cpu_requested\": \"4\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"files_existing\": \"2\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"16.0\", \"num_columns\": \"4\", \"num_rows\": \"2\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"path_column\": \"slide_path\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_780b3e37719c4ecf855ac060cde18357": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-02T19:35:27.514000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-02T19:35:50.380000+00:00"
+          ],
+          "schema:name": [
+            "🧩 Tiling (provenance, subset — reused from production tiling_200)"
+          ],
+          "schema:identifier": [
+            "780b3e37719c4ecf855ac060cde18357"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/780b3e37719c4ecf855ac060cde18357/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_masks_source\": \"/mnt/projects/huncrc_dysplasia/preprocessing/tiling_200\", \"cfg_mpp\": \"0.485069444444444\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_provenance_dataset_registration_run_id\": \"4ef2fb98adb8432b9ee224fc5bdd5231\", \"cfg_provenance_split_run_id\": \"2385fd8162d746188c5c3092e2a1b605\", \"cfg_restamped_split_059\": \"train\", \"cfg_restamped_split_155\": \"test_final\", \"cfg_reuse_reason\": \"both slides already tiled in the production full-cohort tiling at the proven pilot geometry; a provenance-library test does not need a recompute\", \"cfg_stride\": \"112\", \"cfg_subset_slides\": \"[\\\"059\\\", \\\"155\\\"]\", \"cfg_tile_extent\": \"224\", \"cfg_tissue_threshold\": \"0.5\", \"columns\": \"[\\\"slide_id\\\", \\\"x\\\", \\\"y\\\", \\\"tissue\\\", \\\"annotation\\\", \\\"epithelium\\\", \\\"blur\\\", \\\"artifacts\\\", \\\"clarity\\\", \\\"fold\\\", \\\"lowgrade_dysplasia\\\", \\\"highgrade_dysplasia\\\", \\\"split\\\"]\", \"cpu_requested\": \"4\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"label_column\": \"annotation\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"32.0\", \"num_columns\": \"13\", \"num_rows\": \"177231\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_bc5160ba96064230b375cb15fdf78320": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-01T21:47:23.420000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-01T21:47:26.764000+00:00"
+          ],
+          "schema:name": [
+            "📂 Dataset Creation (provenance, subset)"
+          ],
+          "schema:identifier": [
+            "bc5160ba96064230b375cb15fdf78320"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/bc5160ba96064230b375cb15fdf78320/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_slides_path\": \"/mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_v2\", \"cfg_dataset_subset_n\": \"2\", \"cfg_dataset_tiles_path\": \"/mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_ML-dataset/ML_dataset\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_provenance_dataset_run_id\": \"4ef2fb98adb8432b9ee224fc5bdd5231\", \"columns\": \"[\\\"case_id\\\", \\\"slide_path\\\", \\\"tiles_path\\\"]\", \"cpu_requested\": \"2\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"files_existing\": \"2\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"8.0\", \"num_columns\": \"3\", \"num_rows\": \"2\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"path_column\": \"slide_path\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_d9af25eaf0044e6d911887c69cc8e18b": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-02T12:57:10.523000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-02T12:57:25.266000+00:00"
+          ],
+          "schema:name": [
+            "🎭 QC (provenance, subset — masks reused from production)"
+          ],
+          "schema:identifier": [
+            "d9af25eaf0044e6d911887c69cc8e18b"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/d9af25eaf0044e6d911887c69cc8e18b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_mask_subdirs\": \"[\\\"blur_per_pixel\\\", \\\"blur_per_tile\\\", \\\"artifacts_per_pixel\\\", \\\"artifacts_per_tile\\\"]\", \"cfg_masks_source\": \"/mnt/projects/huncrc_dysplasia/preprocessing/quality_control\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_qc_parameters_check_focus\": \"True\", \"cfg_qc_parameters_check_folding\": \"False\", \"cfg_qc_parameters_check_residual\": \"True\", \"cfg_qc_parameters_mask_level\": \"3\", \"cfg_qc_parameters_sample_level\": \"1\", \"cfg_qc_parameters_wb_correction\": \"True\", \"cfg_reuse_reason\": \"masks already produced by the production 200-slide QC service run; a provenance-library test does not need a recompute\", \"cfg_reused_from_production_run\": \"0e3d8a66a7084e0f8a492ba6186c1a80\", \"cfg_subset_slides\": \"[\\\"/mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_v2/155.mrxs\\\", \\\"/mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_v2/059.mrxs\\\"]\", \"columns\": \"[\\\"mean_coverage(Piqe)\\\", \\\"mean_coverage(ResidualArtifactsAndCoverage)\\\", \\\"median_coverage(Piqe)\\\", \\\"median_coverage(ResidualArtifactsAndCoverage)\\\", \\\"sample_level\\\", \\\"slide_name\\\"]\", \"cpu_requested\": \"4\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"8.0\", \"num_columns\": \"6\", \"num_rows\": \"2\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-11-03T13:06:31.431000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-11-03T14:29:14.836000+00:00"
+          ],
+          "schema:name": [
+            "🧬 Embeddings (provenance, subset — reused from production gigapath run)"
+          ],
+          "schema:identifier": [
+            "dd529985c45546bd81bbf8bf2e2cdb8b"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/212/dd529985c45546bd81bbf8bf2e2cdb8b/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{\"cfg_dataset_name\": \"huncrc-cohort\", \"cfg_dataset_version\": \"1.0.0\", \"cfg_derived_from_tiling\": \"/mnt/projects/huncrc_dysplasia/preprocessing/tiling_200\", \"cfg_masks_source\": \"/mnt/projects/huncrc_dysplasia/preprocessing/embeddings/prov-gigapath\", \"cfg_model\": \"prov-gigapath\", \"cfg_provenance_create_dataset_run_id\": \"bc5160ba96064230b375cb15fdf78320\", \"cfg_provenance_tiling_run_id\": \"780b3e37719c4ecf855ac060cde18357\", \"cfg_reuse_reason\": \"vectors already computed by the production full-cohort gigapath run; a provenance-library test does not need inference\", \"cfg_subset_slides\": \"[\\\"155\\\", \\\"059\\\"]\", \"columns\": \"[\\\"slide\\\", \\\"embedding_rows\\\"]\", \"cpu_requested\": \"4\", \"cuda_runtime\": \"n/a\", \"cuda_version\": \"n/a\", \"cudnn_enabled\": \"n/a\", \"cudnn_version\": \"n/a\", \"gpu_compute_capability\": \"n/a\", \"gpu_count\": \"0\", \"gpu_driver_version\": \"n/a\", \"gpu_name\": \"none\", \"libvips_version\": \"8.17.2\", \"memory_limit_gib\": \"32.0\", \"num_columns\": \"2\", \"num_rows\": \"2\", \"openslide_version\": \"1.4.3\", \"os_platform\": \"Linux-6.8.0-136-generic-x86_64-with-glibc2.39\", \"python_version\": \"3.12.3\", \"torch_version\": \"2.11.0+cu130\"}"
+          ]
+        },
+        "gen:run_0e3d8a66a7084e0f8a492ba6186c1a80": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Action"
+            }
+          ],
+          "prov:startTime": [
+            "2026-10-28T22:58:28.999000+00:00"
+          ],
+          "prov:endTime": [
+            "2026-10-29T03:18:34.494000+00:00"
+          ],
+          "schema:name": [
+            "QC output (200 slides, huncrc)"
+          ],
+          "schema:identifier": [
+            "0e3d8a66a7084e0f8a492ba6186c1a80"
+          ],
+          "dct:description": [
+            ""
+          ],
+          "cpm:externalId": [
+            "mlflow-artifacts:/168/0e3d8a66a7084e0f8a492ba6186c1a80/artifacts"
+          ],
+          "cpm:externalIdType": [
+            "MLflow artifact URI"
+          ],
+          "mlkit:params": [
+            "{}"
+          ]
+        },
+        "storage:Run_b88631886d": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "cpm:MainActivity"
+            }
+          ],
+          "cpm:referencedMetaBundleId": [
+            "TODO:referencedMetaBundleId"
+          ],
+          "cpm:referencedMetaBundleSpecV": [
+            "ISO-IS-23494-2:2026"
+          ],
+          "dct:hasPart": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_2385fd8162d746188c5c3092e2a1b605"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_4ef2fb98adb8432b9ee224fc5bdd5231"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_5d812b44fbc94d3cbf6391a1683297e6"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_780b3e37719c4ecf855ac060cde18357"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_bc5160ba96064230b375cb15fdf78320"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_d9af25eaf0044e6d911887c69cc8e18b"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "gen:run_0e3d8a66a7084e0f8a492ba6186c1a80"
+            }
+          ]
+        }
+      },
+      "agent": {
+        "gen:user_519192@mail.muni.cz": {
+          "schema:name": [
+            "519192@mail.muni.cz"
+          ],
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Person"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "schema:Person"
+            }
+          ],
+          "schema:affiliation": [
+            "RationAI"
+          ]
+        },
+        "gen:org_RationAI": {
+          "prov:type": [
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "cpm:CurrentAgent"
+            },
+            {
+              "type": "prov:QUALIFIED_NAME",
+              "$": "prov:Organization"
+            }
+          ],
+          "schema:name": [
+            "RationAI"
+          ],
+          "cpm:contactIdPid": [
+            "TODO:contactIdPid"
+          ]
+        }
+      },
+      "wasAssociatedWith": {
+        "_:n35": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n36": {
+          "prov:activity": "gen:run_2385fd8162d746188c5c3092e2a1b605",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n37": {
+          "prov:activity": "gen:run_4ef2fb98adb8432b9ee224fc5bdd5231",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n38": {
+          "prov:activity": "gen:run_5d812b44fbc94d3cbf6391a1683297e6",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n39": {
+          "prov:activity": "gen:run_780b3e37719c4ecf855ac060cde18357",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n40": {
+          "prov:activity": "gen:run_bc5160ba96064230b375cb15fdf78320",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n41": {
+          "prov:activity": "gen:run_d9af25eaf0044e6d911887c69cc8e18b",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n42": {
+          "prov:activity": "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n43": {
+          "prov:activity": "gen:run_0e3d8a66a7084e0f8a492ba6186c1a80",
+          "prov:agent": "gen:user_519192@mail.muni.cz"
+        },
+        "_:n44": {
+          "prov:activity": "storage:Run_b88631886d",
+          "prov:agent": "gen:org_RationAI"
+        }
+      },
+      "wasGeneratedBy": {
+        "_:n0": {
+          "prov:entity": "gen:model_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1"
+        },
+        "_:n15": {
+          "prov:entity": "gen:output_2385fd8162d746188c5c3092e2a1b605",
+          "prov:activity": "gen:run_2385fd8162d746188c5c3092e2a1b605"
+        },
+        "_:n17": {
+          "prov:entity": "gen:output_4ef2fb98adb8432b9ee224fc5bdd5231",
+          "prov:activity": "gen:run_4ef2fb98adb8432b9ee224fc5bdd5231"
+        },
+        "_:n18": {
+          "prov:entity": "gen:output_5d812b44fbc94d3cbf6391a1683297e6",
+          "prov:activity": "gen:run_5d812b44fbc94d3cbf6391a1683297e6"
+        },
+        "_:n20": {
+          "prov:entity": "gen:output_780b3e37719c4ecf855ac060cde18357",
+          "prov:activity": "gen:run_780b3e37719c4ecf855ac060cde18357"
+        },
+        "_:n23": {
+          "prov:entity": "gen:output_bc5160ba96064230b375cb15fdf78320",
+          "prov:activity": "gen:run_bc5160ba96064230b375cb15fdf78320"
+        },
+        "_:n25": {
+          "prov:entity": "gen:output_d9af25eaf0044e6d911887c69cc8e18b",
+          "prov:activity": "gen:run_d9af25eaf0044e6d911887c69cc8e18b"
+        },
+        "_:n29": {
+          "prov:entity": "gen:output_dd529985c45546bd81bbf8bf2e2cdb8b",
+          "prov:activity": "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b"
+        },
+        "_:n32": {
+          "prov:entity": "gen:output_0e3d8a66a7084e0f8a492ba6186c1a80",
+          "prov:activity": "gen:run_0e3d8a66a7084e0f8a492ba6186c1a80"
+        },
+        "_:n33": {
+          "prov:entity": "gen:forward_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:activity": "storage:Run_b88631886d"
+        }
+      },
+      "used": {
+        "_:n1": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_2385fd8162d746188c5c3092e2a1b605_artifacts"
+        },
+        "_:n3": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_211_4ef2fb98adb8432b9ee224fc5bdd5231_artifacts"
+        },
+        "_:n5": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_5d812b44fbc94d3cbf6391a1683297e6_artifacts"
+        },
+        "_:n7": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_780b3e37719c4ecf855ac060cde18357_artifacts"
+        },
+        "_:n9": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        },
+        "_:n11": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_d9af25eaf0044e6d911887c69cc8e18b_artifacts"
+        },
+        "_:n13": {
+          "prov:activity": "gen:run_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:entity": "gen:input_mlflow_artifacts_212_dd529985c45546bd81bbf8bf2e2cdb8b_artifacts"
+        },
+        "_:n16": {
+          "prov:activity": "gen:run_2385fd8162d746188c5c3092e2a1b605",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        },
+        "_:n19": {
+          "prov:activity": "gen:run_5d812b44fbc94d3cbf6391a1683297e6",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        },
+        "_:n21": {
+          "prov:activity": "gen:run_780b3e37719c4ecf855ac060cde18357",
+          "prov:entity": "gen:input_mlflow_artifacts_212_2385fd8162d746188c5c3092e2a1b605_artifacts"
+        },
+        "_:n22": {
+          "prov:activity": "gen:run_780b3e37719c4ecf855ac060cde18357",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        },
+        "_:n24": {
+          "prov:activity": "gen:run_bc5160ba96064230b375cb15fdf78320",
+          "prov:entity": "gen:input_mlflow_artifacts_211_4ef2fb98adb8432b9ee224fc5bdd5231_artifacts"
+        },
+        "_:n26": {
+          "prov:activity": "gen:run_d9af25eaf0044e6d911887c69cc8e18b",
+          "prov:entity": "gen:input_mlflow_artifacts_168_0e3d8a66a7084e0f8a492ba6186c1a80_artifacts"
+        },
+        "_:n28": {
+          "prov:activity": "gen:run_d9af25eaf0044e6d911887c69cc8e18b",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        },
+        "_:n30": {
+          "prov:activity": "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b",
+          "prov:entity": "gen:input_mlflow_artifacts_212_780b3e37719c4ecf855ac060cde18357_artifacts"
+        },
+        "_:n31": {
+          "prov:activity": "gen:run_dd529985c45546bd81bbf8bf2e2cdb8b",
+          "prov:entity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts"
+        }
+      },
+      "wasDerivedFrom": {
+        "_:n2": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_2385fd8162d746188c5c3092e2a1b605_artifacts",
+          "prov:usedEntity": "gen:output_2385fd8162d746188c5c3092e2a1b605"
+        },
+        "_:n4": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_211_4ef2fb98adb8432b9ee224fc5bdd5231_artifacts",
+          "prov:usedEntity": "gen:output_4ef2fb98adb8432b9ee224fc5bdd5231"
+        },
+        "_:n6": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_5d812b44fbc94d3cbf6391a1683297e6_artifacts",
+          "prov:usedEntity": "gen:output_5d812b44fbc94d3cbf6391a1683297e6"
+        },
+        "_:n8": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_780b3e37719c4ecf855ac060cde18357_artifacts",
+          "prov:usedEntity": "gen:output_780b3e37719c4ecf855ac060cde18357"
+        },
+        "_:n10": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_bc5160ba96064230b375cb15fdf78320_artifacts",
+          "prov:usedEntity": "gen:output_bc5160ba96064230b375cb15fdf78320"
+        },
+        "_:n12": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_d9af25eaf0044e6d911887c69cc8e18b_artifacts",
+          "prov:usedEntity": "gen:output_d9af25eaf0044e6d911887c69cc8e18b"
+        },
+        "_:n14": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_212_dd529985c45546bd81bbf8bf2e2cdb8b_artifacts",
+          "prov:usedEntity": "gen:output_dd529985c45546bd81bbf8bf2e2cdb8b"
+        },
+        "_:n27": {
+          "prov:generatedEntity": "gen:input_mlflow_artifacts_168_0e3d8a66a7084e0f8a492ba6186c1a80_artifacts",
+          "prov:usedEntity": "gen:output_0e3d8a66a7084e0f8a492ba6186c1a80"
+        }
+      },
+      "specializationOf": {
+        "_:n34": {
+          "prov:specificEntity": "gen:model_b88631886d0d471d89fbfbc7a45a2ea1",
+          "prov:generalEntity": "gen:forward_b88631886d0d471d89fbfbc7a45a2ea1"
+        }
+      }
+    }
+  }
+}

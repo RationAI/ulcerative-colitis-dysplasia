@@ -25,6 +25,10 @@
 #:        * checkpoint dir = prov-dedicated (training/embeddings_huncrc2prov
 #:          — the production training/embeddings_huncrc200 stays untouched)
 #:        * MLflow experiment (provenance_huncrc_test) + run name
+#:        * HYDRA_MAIN_MODULE=__main__ (env, not CLI) — an in-process import
+#:          names the module `ml.__main__`, which would put hydra in
+#:          Python-package config mode; the override restores the
+#:          file-based config_path resolution of `python -m ml`
 #:   4. log_provenance — into the training run, which is still the active
 #:      run after main() returns (the logger creates and starts it but
 #:      never ends it — atexit does) — full ancestor chain as inputs
@@ -64,8 +68,11 @@ QC_RUN_ID = "d9af25eaf0044e6d911887c69cc8e18b"
 #: Pinned tissue cut-down run (compute mode; verified healthy 2026-11-02).
 TISSUE_RUN_ID = "5d812b44fbc94d3cbf6391a1683297e6"
 #: ── FILLED IN after the reuse-wave jobs finish (run ids from their logs) ──
-TILING_RUN_ID = "TODO_FILL_AFTER_TILING_JOB"
-EMBEDDINGS_RUN_ID = "TODO_FILL_AFTER_EMBEDDINGS_JOB"
+#: Reuse mode; finished 2026-11-02 (verified: 2 slides, 177,231 tiles).
+TILING_RUN_ID = "780b3e37719c4ecf855ac060cde18357"
+#: Reuse mode; finished 2026-11-03 (verified: 2 parquets, grid check 1:1,
+#: input_uris pin create_dataset + the tiling run).
+EMBEDDINGS_RUN_ID = "dd529985c45546bd81bbf8bf2e2cdb8b"
 # ─────────────────────────────────────────────────────────────────────────
 
 #: The ORIGINAL experiment config — reused byte-identical; prov deviations
@@ -203,6 +210,16 @@ def main() -> None:
             f'++metadata.run_name="{RUN_NAME}"',
             '++metadata.description="2-slide provenance test chain (train: 059, test_final: 155)"',
         ]
+        #: hydra 1.3 resolves config_path from the task function's
+        #: __module__: `python -m ml` runs the file as `__main__` (file-based
+        #: resolution of "../configs"), but an in-process import loads it as
+        #: `ml.__main__`, which switches hydra to Python-package mode and
+        #: fails with "Primary config module 'configs' not found".
+        #: HYDRA_MAIN_MODULE is hydra's documented override
+        #: (hydra/_internal/utils.py:_get_module_name_override) — forcing
+        #: `__main__` makes the original entry point resolve its config
+        #: exactly like production.
+        os.environ["HYDRA_MAIN_MODULE"] = "__main__"
         from ml.__main__ import main as training_main  #: in-process: same process, same active run
 
         training_main()

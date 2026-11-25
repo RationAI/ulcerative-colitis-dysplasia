@@ -42,9 +42,14 @@ class DysplasiaEmbeddingsClassifier(LightningModule):
         return self.regressor(x)
 
     def training_step(self, batch: tuple) -> Tensor:  # pylint: disable=arguments-differ
-        x, labels, _ = batch
+        x, labels, meta = batch
         logits = self(x).squeeze(-1)
-        loss = self.criterion(logits, labels.float())
+        #: per-sample weights (v2 label policy down-weights neoplastic-slide
+        #: negatives; 1.0 everywhere under the legacy conventions, where this
+        #: is exactly the plain BCEWithLogitsLoss)
+        loss = nn.functional.binary_cross_entropy_with_logits(
+            logits, labels.float(), weight=meta["weight"].float()
+        )
         self.log("train/loss", loss, on_step=True, prog_bar=True)
         return loss
 

@@ -1,10 +1,14 @@
 defaults:
   - /dataset/processed@_here_
   - /dataset/processed_w_tissue@_here_
-  - /dataset/processed_w_epi@_here_
   - _self_
 
-epithelium: /mnt/projects/inflammatory_bowel_disease/ulcerative_colitis_dysplasia/epithelium_masks/raw
+#: No episeg run yet, so point `epithelium` at the tissue masks as a stand-in. It is
+#: the tissue masks' MLflow URI (self-referenced, so it can't drift from the real one);
+#: preprocessing/tiling.py reuses the already-downloaded tissue folder in that case.
+#: Switching to the real masks later = change this one value to the episeg output dir
+#: (${project_path}/epithelium_masks/raw) or its MLflow URI. No code change needed.
+epithelium: ${mlflow_uris.tissue}
 
 mlflow_uris:
   qc: mlflow-artifacts:/111/10ec53e2cefd4e589e2d76d3373c8286/artifacts/qc_output

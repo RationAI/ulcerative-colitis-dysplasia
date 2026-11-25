@@ -1,0 +1,25 @@
+# @package _global_
+
+#: Level the masks are rasterized at. 5, not the 3 tile_masks uses: the annotation
+#: squares are 1024-2048 level-0 px, so at level 5 they are still 32-64 px wide -- far
+#: coarser than the labels' own granularity -- while the canvas is 313 MB/slide
+#: instead of 5 GB. This pod is capped at 32 GB and has been OOM-killed by exactly
+#: this shape of array; see memory/notebook-pod-memory-limit.md. Nothing downstream
+#: reads these masks (tiling reads the JSONs), so the level is free to choose, and
+#: it is carried in the tiff's XResolution either way.
+level: 5
+max_concurrent: 4
+
+#: EMPIA JSONs of per-tile labels, from scripts/make_huncrc_annotations.py.
+annot_dir: ${project_path}/annotations
+
+classes:
+  - lowgrade_dysplasia
+  - highgrade_dysplasia
+
+output_dir: ${project_path}/annotation_masks
+mlflow_artifact_path: "annotation_masks"
+
+metadata:
+  run_name: "🖍 Annotation masks Creation"
+  description: "Per-class annotation mask pyramids for hunCRC dysplasia"

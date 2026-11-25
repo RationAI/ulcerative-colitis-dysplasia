@@ -1,0 +1,45 @@
+# @package _global_
+
+#: Tile-level binary dysplasia classification on precomputed prov-gigapath
+#: embeddings -- FULL hunCRC cohort (200), LABEL POLICY v2 (doc.md section
+#: 7). Same model / trainer as embeddings_huncrc200; only the data config
+#: (v2 training table: curated negatives, re-derived dysplasia positives,
+#: per-sample weights) and the checkpoint dir differ, so the validation
+#: AUCs of the two experiments are comparable on the same val split.
+#:
+#:     uv run python -m ml +experiment=embeddings_huncrc200_v2
+#:
+#: Tuning = hydra overrides appended to that line, e.g.
+#:     uv run python -m ml +experiment=embeddings_huncrc200_v2 ++trainer.max_epochs=50
+
+defaults:
+  - /dataset/embeddings_huncrc200_v2
+  - _self_
+
+mode: fit
+
+metadata:
+  run_name: "📊 MLP Embeddings v2 (hunCRC 200)"
+  description: >-
+    Tile-level binary dysplasia classification on prov-gigapath tile
+    embeddings (hunCRC 200) with label policy v2: re-derived dysplasia
+    positives, curated normal/inflammation negatives, QC blur/artifact
+    cuts, down-weighted neoplastic-slide negatives.
+
+trainer:
+  max_epochs: 30
+  accelerator: auto
+  devices: auto
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      #: New dir -- the v1 (embeddings_huncrc200) checkpoints stay put.
+      dirpath: ${project_path}/training/embeddings_huncrc200_v2
+      filename: "emb-dysplasia-v2-{epoch:02d}"
+      monitor: validation/auc
+      mode: max
+      save_last: true
+
+model:
+  _target_: ml.modeling.embeddings.DysplasiaEmbeddingsClassifier
+  dims: [1536, 512, 256, 1]
+  lr: 0.001

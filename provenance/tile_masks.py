@@ -55,7 +55,8 @@ SPLIT_RUN_ID = "2385fd8162d746188c5c3092e2a1b605"
 QC_RUN_ID = "d9af25eaf0044e6d911887c69cc8e18b"
 #: Compute mode; finished 2026-11-02, verified (provenance logged, both tiffs).
 TISSUE_RUN_ID = "5d812b44fbc94d3cbf6391a1683297e6"
-TILING_RUN_ID = "TODO_FILL_AFTER_TILING_JOB"
+#: Reuse mode; finished 2026-11-02 (verified: 2 slides, 177,231 tiles).
+TILING_RUN_ID = "780b3e37719c4ecf855ac060cde18357"
 # ─────────────────────────────────────────────────────────────────────────
 
 #: Same values as configs/preprocessing/tile_masks.yaml — except the

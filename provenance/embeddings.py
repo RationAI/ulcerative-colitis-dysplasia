@@ -21,6 +21,12 @@
 #: (every experiment was checked) — the share dir is the only record of
 #: where the bytes came from, so it is pinned as a param instead of a run id.
 #:
+#: CHAIN NOTE: the tiling cut-down run IS pinned as an input — it is the
+#: chain's formal record of the grid these vectors align 1:1 with (the grid
+#: cross-check compares against the same production tiling it reuses). It
+#: did not produce the vectors (see SOURCE NOTE); the pin is the
+#: grid/chain reference, so the chain stays interconnected from every node.
+#:
 #: The original preprocessing/embeddings.py is left UNTOUCHED.
 #:
 #: FAST: copies ~170 MB + a predicate-pushed grid check — minutes.
@@ -47,6 +53,9 @@ EXPERIMENT = "provenance_huncrc_test"
 CREATE_DATASET_RUN_ID = "bc5160ba96064230b375cb15fdf78320"
 #: Pinned registration run of the huncrc cohort (verify gate).
 DATASET_RUN_ID = "4ef2fb98adb8432b9ee224fc5bdd5231"
+#: Pinned tiling cut-down run — chain reference for the grid these vectors
+#: align 1:1 with (NOT their producer — see SOURCE NOTE above).
+TILING_RUN_ID = "780b3e37719c4ecf855ac060cde18357"
 
 #: The production model these per-slide parquets hold.
 MODEL = "prov-gigapath"
@@ -128,7 +137,9 @@ def main() -> None:
         mlflow.log_artifacts(str(output_path), "embeddings")
 
         log_provenance(
-            output=pd.DataFrame({"slide": stems, "embedding_rows": row_counts}),
+            #: row_counts is a dict — align it to stems (a list), or pandas
+            #: refuses to build the frame (ambiguous ordering).
+            output=pd.DataFrame({"slide": stems, "embedding_rows": [row_counts[s] for s in stems]}),
             config={
                 "dataset": {"name": "huncrc-cohort", "version": "1.0.0"},
                 "model": MODEL,
@@ -136,9 +147,14 @@ def main() -> None:
                 "reuse_reason": "vectors already computed by the production full-cohort gigapath run; a provenance-library test does not need inference",
                 "derived_from_tiling": PRODUCTION_TILING_DIR,
                 "subset_slides": stems,
-                "provenance": {"create_dataset_run_id": CREATE_DATASET_RUN_ID},
+                "provenance": {
+                    "create_dataset_run_id": CREATE_DATASET_RUN_ID,
+                    "tiling_run_id": TILING_RUN_ID,
+                },
             },
-            inputs=[f"runs:/{CREATE_DATASET_RUN_ID}"],
+            #: create_dataset (the slide selection) + the tiling run (the
+            #: chain's grid reference the vectors align 1:1 with).
+            inputs=[f"runs:/{CREATE_DATASET_RUN_ID}", f"runs:/{TILING_RUN_ID}"],
         )
         print(f"[prov embeddings] done — run {run.info.run_id} in experiment {EXPERIMENT}")
 

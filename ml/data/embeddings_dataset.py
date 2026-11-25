@@ -24,6 +24,14 @@ pieces are consecutive sections cut from the same region (the pathologist
 annotated one and skipped the rest), so they are unknown, not negative.
 Slides without any annotation are always kept whole (true-negative slides).
 
+With ``label_table_dir`` set (label policy v2, doc.md section 7), neither
+convention is used: the samples, labels and per-sample weights come from a
+precomputed training table (`{label_table_dir}/{split}.parquet`, built by
+scripts/make_training_tiles.py) that encodes the agreed negative-class
+policy (annotated normal/inflammation tiles only on neoplastic slides,
+slide-category rules, QC blur/artifact cuts, 500 um buffer). It is
+mutually exclusive with ``cluster_k``.
+
 All vectors of the split are read once, in __init__, into a single contiguous
 float32 array. The train sampler shuffles over ~900k tiles, so slides are
 visited in random order and any per-slide cache misses almost every time --
@@ -94,10 +102,19 @@ class DysplasiaEmbeddingsDataset(Dataset):
         split: str,
         max_slides: int | None = None,
         cluster_k: float | None = None,
+        label_table_dir: str | Path | None = None,
     ) -> None:
         tiling_dir, embeddings_dir = Path(tiling_dir), Path(embeddings_dir)
         self.split = split
         self.cluster_k = cluster_k
+        self.label_table_dir = (
+            Path(label_table_dir) if label_table_dir is not None else None
+        )
+        if self.label_table_dir is not None and cluster_k is not None:
+            raise SystemExit(
+                "label_table_dir and cluster_k are mutually exclusive -- the v2 "
+                "training table already encodes the annotated-piece rule"
+            )
 
         slides = pd.read_parquet(tiling_dir / "slides" / "slides.parquet")
         slides = slides[slides["split"] == split].copy()
@@ -167,11 +184,39 @@ class DysplasiaEmbeddingsDataset(Dataset):
                     )
                 parts.append(kept)
             tiles = pd.concat(parts, ignore_index=True)
+        self._weights: np.ndarray | None = None
+        if self.label_table_dir is not None:
+            #: v2 policy: samples/labels/weights from the precomputed table;
+            #: inner-join on the tile grid (every table row must have its
+            #: embedding, so a mismatch is a hard error, not a silent drop).
+            table = pd.read_parquet(
+                self.label_table_dir / f"{split}.parquet",
+                columns=["slide_id", "x", "y", "label", "weight"],
+            )
+            #: scope to the slides actually loaded (max_slides may have cut
+            #: the rest) -- their table rows are expected to be absent
+            table = table[table["slide_id"].isin(set(tiles["slide_id"]))]
+            before = len(tiles)
+            tiles = tiles.merge(table, on=["slide_id", "x", "y"], how="inner")
+            missing = len(table) - len(tiles)
+            if missing:
+                raise RuntimeError(
+                    f"[{split}] {missing}/{len(table)} rows of the v2 training "
+                    f"table ({self.label_table_dir}/{split}.parquet) have no "
+                    "matching tile in the tiling grid"
+                )
+            if len(tiles) != before:
+                print(
+                    f"[{split}] v2 table kept {len(tiles)}/{before} tiling tiles"
+                )
+            self._weights = tiles["weight"].to_numpy(dtype=np.float32)
+            pos = int(tiles["label"].sum())
+        else:
+            pos = (
+                (tiles["lowgrade_dysplasia"] > 0)
+                | (tiles["highgrade_dysplasia"] > 0)
+            ).sum()
         self._tiles = tiles
-        pos = (
-            (self._tiles["lowgrade_dysplasia"] > 0)
-            | (self._tiles["highgrade_dysplasia"] > 0)
-        ).sum()
         print(
             f"[{split}] {len(self._slides)} slides, {len(self._tiles)} tiles, "
             f"{int(pos)} dysplasia ({100 * pos / len(self._tiles):.1f}%)"
@@ -194,13 +239,16 @@ class DysplasiaEmbeddingsDataset(Dataset):
             sid: np.asarray(idx)
             for sid, idx in self._tiles.groupby("slide_id").groups.items()
         }
-        self._labels = (
-            (
-                (self._tiles["lowgrade_dysplasia"] > 0)
-                | (self._tiles["highgrade_dysplasia"] > 0)
+        if self.label_table_dir is not None:
+            self._labels = self._tiles["label"].to_numpy(dtype=np.float32)
+        else:
+            self._labels = (
+                (
+                    (self._tiles["lowgrade_dysplasia"] > 0)
+                    | (self._tiles["highgrade_dysplasia"] > 0)
+                )
+                .to_numpy(dtype=np.float32)
             )
-            .to_numpy(dtype=np.float32)
-        )
         self._vectors = np.empty((0, 0), dtype=np.float32)
         self._read_vectors()
 
@@ -262,5 +310,16 @@ class DysplasiaEmbeddingsDataset(Dataset):
         slide_id, x, y = self._rows[idx]
         embedding = torch.from_numpy(np.ascontiguousarray(self._vectors[idx]))
         label = torch.tensor(self._labels[idx])
-        metadata = {"slide_id": slide_id, "x": str(x), "y": str(y)}
+        metadata = {
+            "slide_id": slide_id,
+            "x": str(x),
+            "y": str(y),
+            #: per-sample loss weight (v2 policy: neoplastic-slide negatives
+            #: are down-weighted); 1.0 in the legacy conventions
+            "weight": (
+                float(self._weights[idx])
+                if self._weights is not None
+                else 1.0
+            ),
+        }
         return embedding, label, metadata

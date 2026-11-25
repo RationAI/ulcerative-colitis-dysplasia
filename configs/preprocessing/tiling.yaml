@@ -6,9 +6,12 @@ stride: ???
 tissue_threshold: 0.5
 mlflow_artifact_path: tiling
 row_per_file: 50_000
+#: Must match the annotation polygon names EXACTLY (anchored regex, tiling.py:90) or
+#: every tile silently labels as background. The HunCRC EMPIA JSONs use the raw CSV
+#: column names, not the IBD "LG/HG Dysplasia" spelling.
 target_groups:
-  - "LG Dysplasia"
-  - "HG Dysplasia"
+  - "lowgrade_dysplasia"
+  - "highgrade_dysplasia"
 
 metadata:
   run_name: "🧩 Tiling - ${tile_extent}px @ ${mpp}mpp"
