@@ -5,7 +5,7 @@ Nothing is retrained or re-scored. Every number comes from the saved runs
 ``report.json`` written by ``within_slide_cv.py report``.
 
     # 1. read-only: experiment name / artifact location / does auth work
-    python scripts/huncrc/log_to_mlflow.py --check-mlflow
+    python scripts/huncrc/log_to_mlflow.py --check-mlflow --login
     # 2. print everything that would be created, touch nothing
     python scripts/huncrc/log_to_mlflow.py --dry-run --report <combined report.json> \
         --source-map /home/jovyan/huncrc_tile_classifier_results/2026-11-21=<share> ...
@@ -21,8 +21,19 @@ bootstrap CI of the mean from the report. The per-epoch curves are
 .csv summaries: no caches, checkpoints or per-tile score arrays.
 
 The report's ``sources`` say where each set's runs are. ``--source-map OLD=NEW``
-rewrites a path prefix, for runs copied to the share (the Kubernetes job only
-mounts /mnt/data and /mnt/projects).
+rewrites a path prefix, for runs copied to the share.
+
+Authentication (the server sits behind an OIDC login plugin). Run it from a
+Jupyter terminal, because the prompt needs a TTY:
+- ``--login`` prompts for the login email and the MLflow API access token
+  (hidden, via getpass; not the SSO password), as the bone-marrow-fibrosis
+  helper does. They are put in MLFLOW_TRACKING_USERNAME / _PASSWORD of this
+  process only: never echoed, logged, stored, or passed as an argument.
+- otherwise MLFLOW_TRACKING_TOKEN from the environment, if set;
+- otherwise MLFLOW_TRACKING_USERNAME + _PASSWORD from the environment.
+Only which of these was used is printed. The tracking URI defaults to the
+public endpoint (``--tracking-uri`` overrides it), not the notebook's
+MLFLOW_TRACKING_URI, which names an internal host this pod cannot resolve.
 
 Refused, so they never reach MLflow:
 - smoke runs (``smoke_tiles_per_slide`` set, or "smoke" in the path);
@@ -43,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import getpass
 import hashlib
 import io
 import json
@@ -69,6 +81,7 @@ from ml.data.huncrc_labels import LabelConfig  # noqa: E402
 EXPERIMENT_ID = "168"
 EXPERIMENT_NAME = "Ulcerative Colitis Dysplasia"
 BRANCH = "feature/huncrc-tile-classifier"
+PUBLIC_MLFLOW = "https://mlflow.rationai.cloud.e-infra.cz"
 N_FOLDS = 5
 FINAL_SETS = ["A-unw", "A-bal", "B", "C", "D", "E"]
 MAX_PARAM_LEN = 500  # MLflow 2.x server limit
@@ -192,12 +205,31 @@ def _mean_sd(v: list[Any]) -> tuple[float, float]:
     return float(a.mean()), float(a.std(ddof=1)) if len(a) > 1 else float("nan")
 
 
+# How much a recorded commit proves about the code that ran (git_commit_source):
+JOB_CLONE = "job-clone"  # fresh clone of a pushed commit in the pod: exact
+RUN_LOG_HEAD = "run-log-head"  # HEAD of the notebook checkout at run start
+UNRECORDED = "unrecorded"  # the run logged no commit
+RETROSPECTIVE = "retrospective"  # assigned afterwards (--git-commit)
+
+GIT_DIRTY_BASIS = {
+    JOB_CLONE: "fresh git clone of the pushed commit in the job pod; the tree "
+    "cannot differ from the commit",
+    RUN_LOG_HEAD: "the run log checked only unstaged changes to tracked files under "
+    "ml/ and scripts/ at run start (git diff --quiet); staged, untracked and other "
+    "files were not checked, so a clean tree is not established",
+    UNRECORDED: "the run recorded no commit and no tree state",
+    RETROSPECTIVE: "the commit was assigned after the run; the run recorded no tree "
+    "state",
+}
+
+
 def code_provenance(set_dir: Path) -> dict[str, str]:
-    """Git commit and origin (cluster job / Jupyter) from the run's log file.
+    """Git commit, how it was recorded, tree state and origin, from the run log.
 
     run.log next to the runs dir (Steps 8-9: ``<out>/run.log``, ``<out>/runs``),
-    else train.log in the runs dir (Step 4a). Step 4a ran before its code was
-    committed and logged no commit: "unrecorded".
+    else train.log in the runs dir (Step 4a). Only a fresh clone in a job pod
+    proves a clean tree; a notebook run's ``git=<sha>`` without ``+dirty``
+    leaves git_dirty "unknown" (see GIT_DIRTY_BASIS).
     """
     runs_dir = set_dir.parent
     logs = [runs_dir.parent / "run.log", runs_dir / "run.log", runs_dir / "train.log"]
@@ -209,16 +241,16 @@ def code_provenance(set_dir: Path) -> dict[str, str]:
         m = re.search(r"\[job\] commit ([0-9a-f]{40})", text)
         g = re.search(r"\bgit=([0-9a-f]{7,40})(\+dirty)?", text)
         if m:
-            sha, dirty = m.group(1), bool(g and g.group(2))
+            sha, source, dirty = m.group(1), JOB_CLONE, "false"
         elif g:
-            sha, dirty = g.group(1), bool(g.group(2))
+            sha, source = g.group(1), RUN_LOG_HEAD
+            dirty = "true" if g.group(2) else "unknown"
         else:
-            return {"git_commit": "unrecorded", "git_dirty": "unknown",
-                    "origin": origin, "log": str(log)}  # fmt: skip
-        return {"git_commit": sha, "git_dirty": str(dirty).lower(),
+            sha, source, dirty = "unrecorded", UNRECORDED, "unknown"
+        return {"git_commit": sha, "git_commit_source": source, "git_dirty": dirty,
                 "origin": origin, "log": str(log)}  # fmt: skip
-    return {"git_commit": "unrecorded", "git_dirty": "unknown", "origin": "unknown",
-            "log": ""}  # fmt: skip
+    return {"git_commit": "unrecorded", "git_commit_source": UNRECORDED,
+            "git_dirty": "unknown", "origin": "unknown", "log": ""}  # fmt: skip
 
 
 def map_source(path: str, source_map: dict[str, str]) -> str:
@@ -291,8 +323,10 @@ def build_plan(
         raise RefuseError(f"{name}: report has folds {folds}, need all {N_FOLDS}")
 
     prov = code_provenance(set_dir)
+    recorded = prov["git_commit"]
     if git_override:
         prov["git_commit"], prov["git_dirty"] = git_override, "unknown"
+        prov["git_commit_source"] = RETROSPECTIVE
     rules = spec.rules
     report_sha = hashlib.sha256(report_path.read_bytes()).hexdigest()[:12]
     log_key = f"{name}|{prov['git_commit'][:12]}|{report_sha}"
@@ -356,16 +390,20 @@ def build_plan(
         else "; ".join("fold{}: neg={:.6f} pos={:.6f}".format(k, *d["class_weights"])
                        for k, d in zip(folds, dones, strict=True)),
         "git_commit": prov["git_commit"],
+        "git_commit_source": prov["git_commit_source"],
         "git_dirty": prov["git_dirty"],
+        "git_dirty_basis": GIT_DIRTY_BASIS[prov["git_commit_source"]],
         "runs_dir": reported_dir or str(set_dir),
         **STATIC_PARAMS,
     }  # fmt: skip
     if reported_dir and reported_dir != str(set_dir):
         params["runs_dir_copy"] = str(set_dir)
-    if prov["git_commit"] == "unrecorded":
+    if prov["git_commit_source"] == RETROSPECTIVE:
+        params["git_commit_recorded"] = recorded
+    if spec.step == "4a":
         params["git_note"] = (
-            "run produced before the code was committed; scripts/huncrc/linear_cv.py "
-            "was first committed in a9e6511"
+            "Step 4a ran 2026-11-19, before its code was committed; "
+            "scripts/huncrc/linear_cv.py was first committed in a9e6511 (2026-11-21)"
         )
     for key, val in R["prelim"].get("n", {}).items():
         params[f"prelim_n_{key}"] = (
@@ -379,6 +417,7 @@ def build_plan(
         "step": spec.step,
         "branch": BRANCH,
         "origin": prov["origin"],
+        "git_commit_source": prov["git_commit_source"],
         "model_set": name,
         "retrospective": "true",
         "smoke": "false",
@@ -390,7 +429,7 @@ def build_plan(
             "(step = fold), X_sd = sd over folds."
         ),
     }
-    if prov["git_commit"] != "unrecorded":
+    if prov["git_commit_source"] in (JOB_CLONE, RUN_LOG_HEAD):  # recorded by the run
         tags["mlflow.source.git.commit"] = prov["git_commit"]
 
     plan = RunPlan(name=name, tags=tags, params=params)
@@ -537,12 +576,63 @@ def describe(plans: list[RunPlan], experiment_id: str) -> str:
     return "\n".join(L)
 
 
+AUTH_VARS = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD",
+             "MLFLOW_TRACKING_TOKEN")  # fmt: skip
+_SECRETS: list[str] = []  # in memory only, to mask them in error messages
+
+
 def _redact_uri(uri: str) -> str:
     return re.sub(r"//[^/@]+@", "//***@", uri)
 
 
-def check_mlflow(experiment_id: str) -> int:
-    """Read-only: who/where, experiment name and artifact location. 0 = usable."""
+def _mask(text: str) -> str:
+    for secret in _SECRETS:
+        text = text.replace(secret, "***")
+    return re.sub(r"(?i)(bearer|token|password)\S*\s*\S+", r"\1 ***", text)
+
+
+def setup_tracking(
+    uri: str,
+    login: bool,
+    ask: Any = input,
+    ask_hidden: Any = getpass.getpass,
+) -> str:
+    """Point this process at ``uri`` and pick the credentials; returns which.
+
+    Only os.environ of this process changes. Nothing is printed except the
+    prompts; the caller reports the returned mode (never a value).
+    """
+    os.environ["MLFLOW_TRACKING_URI"] = uri
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "20")
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
+    if login:
+        user = ask("MLflow login email: ").strip()
+        secret = ask_hidden("MLflow API access token (hidden; not your SSO password): ")
+        if not user or not secret:
+            raise SystemExit("login email and access token are required; nothing done")
+        _SECRETS.append(secret)
+        os.environ["MLFLOW_TRACKING_USERNAME"] = user
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = secret
+        os.environ.pop("MLFLOW_TRACKING_TOKEN", None)
+        return "username + password typed at the prompt (--login)"
+    if os.environ.get("MLFLOW_TRACKING_TOKEN"):
+        _SECRETS.append(os.environ["MLFLOW_TRACKING_TOKEN"])
+        os.environ.pop("MLFLOW_TRACKING_USERNAME", None)
+        os.environ.pop("MLFLOW_TRACKING_PASSWORD", None)
+        return "MLFLOW_TRACKING_TOKEN from the environment"
+    if os.environ.get("MLFLOW_TRACKING_USERNAME") and os.environ.get(
+        "MLFLOW_TRACKING_PASSWORD"
+    ):
+        _SECRETS.append(os.environ["MLFLOW_TRACKING_PASSWORD"])
+        return "MLFLOW_TRACKING_USERNAME + _PASSWORD from the environment"
+    raise SystemExit(
+        "MLflow authentication is missing: run with --login in a Jupyter terminal "
+        "(or set MLFLOW_TRACKING_TOKEN). Nothing done."
+    )
+
+
+def check_mlflow(experiment_id: str, auth_mode: str = "") -> int:
+    """Read-only: where, which credentials, experiment name and artifact location."""
     from mlflow.tracking import MlflowClient
 
     from ml._mlflow_compat import apply_mlflow_compat_patch
@@ -551,13 +641,14 @@ def check_mlflow(experiment_id: str) -> int:
     print(
         f"MLFLOW_TRACKING_URI = {_redact_uri(os.environ.get('MLFLOW_TRACKING_URI', ''))}"
     )
-    for var in ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD",
-                "MLFLOW_TRACKING_TOKEN"):  # fmt: skip
+    if auth_mode:
+        print(f"credentials: {auth_mode}")
+    for var in AUTH_VARS:
         print(f"{var}: {'set' if os.environ.get(var) else 'not set'}")
     try:
         exp = MlflowClient().get_experiment(experiment_id)
     except Exception as e:  # report and stop; never retry with other credentials
-        msg = re.sub(r"(?i)(bearer|token|password)\S*\s*\S+", r"\1 ***", str(e))
+        msg = _mask(str(e))
         print(
             f"get_experiment({experiment_id}) FAILED: {type(e).__name__}: {msg[:600]}"
         )
@@ -641,14 +732,21 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--git-commit", nargs="*", default=[], metavar="SET=SHA",
                     help="override the code commit of a set (e.g. Step 4a, which logged none)")  # fmt: skip
     ap.add_argument("--experiment-id", default=EXPERIMENT_ID)
+    ap.add_argument("--tracking-uri", default=PUBLIC_MLFLOW,
+                    help=f"MLflow server (default {PUBLIC_MLFLOW})")  # fmt: skip
+    ap.add_argument("--login", action="store_true",
+                    help="prompt for login email and API access token (hidden)")  # fmt: skip
     ap.add_argument("--allow-duplicate", action="store_true")
     ap.add_argument("--check-mlflow", action="store_true",
                     help="read-only check of the server and experiment, then exit")  # fmt: skip
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--dry-run-out", type=Path, help="also write the dry-run text here")
     a = ap.parse_args(argv)
+    if a.login and a.dry_run:
+        ap.error("--dry-run never contacts MLflow; drop --login")
     if a.check_mlflow:
-        raise SystemExit(check_mlflow(a.experiment_id))
+        mode = setup_tracking(a.tracking_uri, a.login)
+        raise SystemExit(check_mlflow(a.experiment_id, mode))
     if a.report is None:
         ap.error("--report is required")
     overrides = _pairs(a.git_commit, "--git-commit")
@@ -665,7 +763,14 @@ def main(argv: list[str] | None = None) -> None:
             a.dry_run_out.parent.mkdir(parents=True, exist_ok=True)
             a.dry_run_out.write_text(text + "\n")
         return
-    log_plans(plans, a.experiment_id, a.allow_duplicate)
+    mode = setup_tracking(a.tracking_uri, a.login)
+    print(f"MLflow {_redact_uri(a.tracking_uri)}; credentials: {mode}", flush=True)
+    try:
+        log_plans(plans, a.experiment_id, a.allow_duplicate)
+    except Exception as e:
+        raise SystemExit(
+            f"logging failed: {type(e).__name__}: {_mask(str(e))[:600]}"
+        ) from None
 
 
 if __name__ == "__main__":
