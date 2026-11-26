@@ -1,0 +1,23 @@
+cohort: huncrc
+annotation_format: qupath
+
+data_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC
+project_path: /mnt/projects/huncrc_dysplasia
+slides_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_v2
+tiles_path: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/PKG - Hungarian-Colorectal-Screening_ML-dataset/ML_dataset
+
+regex_pattern: '^\d{3}\.mrxs$'
+
+annot_path: ${.project_path}/preprocessing/annotations
+
+target_groups:
+  - "lowgrade_dysplasia"
+  - "highgrade_dysplasia"
+  - "normal"
+  - "inflammation"
+  - "adenocarcinoma"
+  - "suspicious_for_invasion"
+  - "lymphovascular_invasion"
+  - "tumor_necrosis"
+  - "artifact"
+  - "resection_edge"

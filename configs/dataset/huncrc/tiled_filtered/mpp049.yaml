@@ -1,0 +1,9 @@
+defaults:
+  - /dataset/huncrc/tiled/mpp049@_here_
+  - _self_
+
+mlflow_uris:
+  tiling_filtered:
+    train: mlflow-artifacts:/168/<FILTER_RUN_L2>/artifacts/filtered_tiles/train
+    test_preliminary: mlflow-artifacts:/168/<FILTER_RUN_L2>/artifacts/filtered_tiles/test_preliminary
+    test_final: mlflow-artifacts:/168/<FILTER_RUN_L2>/artifacts/filtered_tiles/test_final
