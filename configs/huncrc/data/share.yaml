@@ -1,0 +1,9 @@
+# Inputs and outputs on the project share (jobs mount only /mnt/data and /mnt/projects).
+preprocessing: /mnt/projects/huncrc_dysplasia/preprocessing
+tiling: ${.preprocessing}/tiling_200
+embeddings: ${.preprocessing}/embeddings/prov-gigapath
+embedding_dim: 1536
+annotations: ${.preprocessing}/annotations
+slide_csv: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/slide_level_annotations.csv
+cache_root: /mnt/projects/huncrc_dysplasia/tile_classifier/cache
+out: ???  # results dir (runs in <out>/runs); training resumes in an existing one

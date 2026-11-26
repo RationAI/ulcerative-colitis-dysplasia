@@ -259,7 +259,10 @@ def test_dry_run_never_imports_mlflow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setitem(sys.modules, "mlflow", None)  # any import of mlflow would fail
-    L.main(["--dry-run", "--report", str(cohort["report"]), "--sets", "B", "E",
+    for name in [m for m in sys.modules if m.startswith(("rationai", "ml.huncrc"))]:
+        monkeypatch.delitem(sys.modules, name)
+    fresh = _load()  # import the script itself with mlflow blocked, too
+    fresh.main(["--dry-run", "--report", str(cohort["report"]), "--sets", "B", "E",
             "--source-map", f"{HOME}={cohort['share']}"])  # fmt: skip
     out = capsys.readouterr().out
     assert "2 runs, no nested runs: B, E" in out
@@ -356,7 +359,9 @@ def test_login_prompts_and_sets_env_of_this_process_only(
     assert "s3cret" not in capsys.readouterr().out
     assert L._mask("401 for typed-s3cret") == "401 for ***"
     with pytest.raises(SystemExit, match="required"):
-        L.setup_tracking("u", True, ask=lambda q: "x", ask_hidden=lambda q: "")
+        L.setup_tracking(
+            "https://example.invalid", True, ask=lambda q: "x", ask_hidden=lambda q: ""
+        )
 
 
 def test_token_from_env_and_missing_auth(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -392,7 +397,7 @@ def test_check_mlflow_cli_with_token(
         L.main(["--check-mlflow", "--tracking-uri", uri, "--experiment-id", exp])
     assert ex.value.code == 0
     out = capsys.readouterr().out
-    assert "credentials: MLFLOW_TRACKING_TOKEN from the environment" in out
+    assert "credentials: none needed (local store)" in out
     assert "t0ken" not in out and "artifact_location = file:" in out
 
 

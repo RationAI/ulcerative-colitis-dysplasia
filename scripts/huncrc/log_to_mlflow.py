@@ -76,12 +76,19 @@ if str(REPO) not in sys.path:
 
 from ml.data import huncrc_features, huncrc_labels  # noqa: E402
 from ml.data.huncrc_labels import LabelConfig  # noqa: E402
+from ml.huncrc_mlflow_auth import (  # noqa: E402
+    AUTH_VARS,
+    PUBLIC_MLFLOW,
+    AuthMissingError,
+)
+from ml.huncrc_mlflow_auth import mask as _mask  # noqa: E402
+from ml.huncrc_mlflow_auth import redact_uri as _redact_uri  # noqa: E402
+from ml.huncrc_mlflow_auth import setup_tracking as _setup_tracking  # noqa: E402
 
 
 EXPERIMENT_ID = "168"
 EXPERIMENT_NAME = "Ulcerative Colitis Dysplasia"
 BRANCH = "feature/huncrc-tile-classifier"
-PUBLIC_MLFLOW = "https://mlflow.rationai.cloud.e-infra.cz"
 N_FOLDS = 5
 FINAL_SETS = ["A-unw", "A-bal", "B", "C", "D", "E"]
 MAX_PARAM_LEN = 500  # MLflow 2.x server limit
@@ -576,59 +583,20 @@ def describe(plans: list[RunPlan], experiment_id: str) -> str:
     return "\n".join(L)
 
 
-AUTH_VARS = ("MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD",
-             "MLFLOW_TRACKING_TOKEN")  # fmt: skip
-_SECRETS: list[str] = []  # in memory only, to mask them in error messages
-
-
-def _redact_uri(uri: str) -> str:
-    return re.sub(r"//[^/@]+@", "//***@", uri)
-
-
-def _mask(text: str) -> str:
-    for secret in _SECRETS:
-        text = text.replace(secret, "***")
-    return re.sub(r"(?i)(bearer|token|password)\S*\s*\S+", r"\1 ***", text)
-
-
 def setup_tracking(
     uri: str,
     login: bool,
     ask: Any = input,
     ask_hidden: Any = getpass.getpass,
 ) -> str:
-    """Point this process at ``uri`` and pick the credentials; returns which.
-
-    Only os.environ of this process changes. Nothing is printed except the
-    prompts; the caller reports the returned mode (never a value).
-    """
-    os.environ["MLFLOW_TRACKING_URI"] = uri
-    os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "20")
-    os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
-    if login:
-        user = ask("MLflow login email: ").strip()
-        secret = ask_hidden("MLflow API access token (hidden; not your SSO password): ")
-        if not user or not secret:
-            raise SystemExit("login email and access token are required; nothing done")
-        _SECRETS.append(secret)
-        os.environ["MLFLOW_TRACKING_USERNAME"] = user
-        os.environ["MLFLOW_TRACKING_PASSWORD"] = secret
-        os.environ.pop("MLFLOW_TRACKING_TOKEN", None)
-        return "username + password typed at the prompt (--login)"
-    if os.environ.get("MLFLOW_TRACKING_TOKEN"):
-        _SECRETS.append(os.environ["MLFLOW_TRACKING_TOKEN"])
-        os.environ.pop("MLFLOW_TRACKING_USERNAME", None)
-        os.environ.pop("MLFLOW_TRACKING_PASSWORD", None)
-        return "MLFLOW_TRACKING_TOKEN from the environment"
-    if os.environ.get("MLFLOW_TRACKING_USERNAME") and os.environ.get(
-        "MLFLOW_TRACKING_PASSWORD"
-    ):
-        _SECRETS.append(os.environ["MLFLOW_TRACKING_PASSWORD"])
-        return "MLFLOW_TRACKING_USERNAME + _PASSWORD from the environment"
-    raise SystemExit(
-        "MLflow authentication is missing: run with --login in a Jupyter terminal "
-        "(or set MLFLOW_TRACKING_TOKEN). Nothing done."
-    )
+    """ml.huncrc_tracking.setup_tracking, with a CLI exit when auth is missing."""
+    try:
+        return _setup_tracking(uri, login, ask=ask, ask_hidden=ask_hidden)
+    except AuthMissingError as e:
+        raise SystemExit(
+            f"MLflow authentication is missing ({e}): run with --login in a Jupyter "
+            "terminal (or set MLFLOW_TRACKING_TOKEN). Nothing done."
+        ) from None
 
 
 def check_mlflow(experiment_id: str, auth_mode: str = "") -> int:

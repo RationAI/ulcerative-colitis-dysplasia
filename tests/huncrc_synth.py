@@ -71,7 +71,9 @@ def cohort() -> list[tuple[str, str, float | None, str]]:
     return rows
 
 
-def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
+def build(
+    tmp: Path, n_tiles: int = 60, seed: int = 0, dim: int = DIM
+) -> dict[str, Path]:
     rng = np.random.default_rng(seed)
     rows = cohort()
     slides = pd.DataFrame(
@@ -101,7 +103,7 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
     emb.mkdir(parents=True)
     ann = tmp / "annotations"
     ann.mkdir(parents=True)
-    direction = rng.normal(size=DIM)
+    direction = rng.normal(size=dim)
     for name, split, _, cat in rows:
         if split == "test_final":
             continue
@@ -118,7 +120,7 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
         # LG coverage of the central half, exactly as the tiling computes it
         lg = rect_coverage(lg_rects, tile_rects(xs, np.zeros(n_tiles), "central_half"))
         pos = (lg > 0).astype(float)
-        e = rng.normal(size=(n_tiles, DIM)) + np.outer(pos * 1.5, direction)
+        e = rng.normal(size=(n_tiles, dim)) + np.outer(pos * 1.5, direction)
         pd.DataFrame(
             {
                 "slide_id": f"id{name}",
@@ -132,14 +134,14 @@ def build(tmp: Path, n_tiles: int = 60, seed: int = 0) -> dict[str, Path]:
         ).to_parquet(emb / f"{name}.parquet")
     cache = tmp / "cache"
     out = {
-        s: build_features(emb, table, (s,), LabelConfig(), cache, dim=DIM)
+        s: build_features(emb, table, (s,), LabelConfig(), cache, dim=dim)
         for s in ("train", "test_preliminary")
     }
     out["test_preliminary_all"] = build_features(
-        emb, table, ("test_preliminary",), LabelConfig(), cache, dim=DIM, mode="all"
+        emb, table, ("test_preliminary",), LabelConfig(), cache, dim=dim, mode="all"
     )
     out["train_within_slide"] = build_features(
-        emb, table, ("train",), NEW_RULES, cache, dim=DIM, annotations=ann
+        emb, table, ("train",), NEW_RULES, cache, dim=dim, annotations=ann
     )
     out["annotations"] = ann
     out["tiling"] = tmp / "tiling"

@@ -31,6 +31,7 @@ import math
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +40,13 @@ import pandas as pd
 import torch
 
 from ml.data.huncrc_features import FeatureSet, load_features
-from ml.data.huncrc_labels import LabelConfig, load_slide_table, safe_slide_names
+from ml.data.huncrc_labels import (
+    LabelConfig,
+    load_slide_table,
+    rules_diff,
+    rules_fingerprint,
+    safe_slide_names,
+)
 from ml.huncrc_eval import evaluate, weighted_auroc_ap, youden_threshold
 from ml.huncrc_train import (
     Scaler,
@@ -162,12 +169,35 @@ def fold_rows(
     )
 
 
-def train_one(fs, pre, variant, k, d: Path, a) -> None:
+EpochHook = Callable[[str, int, dict[str, Any]], None]
+
+
+def train_rules(a) -> LabelConfig:
+    """The Step-8 rules, or (``--label-rules-from-cache``) those of the train cache.
+
+    Either way ``load_features`` then checks the cache fingerprint against them.
+    """
+    if not a.label_rules_from_cache:
+        return NEW_RULES
+    meta = json.loads((a.train_cache / "meta.json").read_text())
+    rules = LabelConfig(**meta["config"])
+    diff = rules_diff(rules, NEW_RULES)
+    if diff:
+        log(
+            "WARNING: label rules differ from the Step-8 rules (now, Step 8): "
+            + "; ".join(f"{k}={v[0]} (Step 8: {v[1]})" for k, v in diff.items())
+        )
+    return rules
+
+
+def train_one(
+    fs, pre, variant, k, d: Path, a, on_epoch: EpochHook | None = None
+) -> None:
     if (d / "done.json").is_file():
         log(f"{variant}/fold{k}: done, skipped")
         return
     d.mkdir(parents=True, exist_ok=True)
-    safe = safe_slide_names(a.slide_table, NEW_RULES)
+    safe = safe_slide_names(a.slide_table, a.rules)
     tr, val, cnt = fold_rows(
         fs, k, a.smoke_tiles_per_slide, a.neg_cap, a.cap_seed, safe
     )
@@ -224,6 +254,9 @@ def train_one(fs, pre, variant, k, d: Path, a) -> None:
             d / f"epoch_{ep:02d}.json",
         )
         save(state, d / f"epoch_{ep:02d}.pt", "pt")  # written last = epoch complete
+        # e.g. live MLflow from ml/huncrc_cv.py; the hook must not raise
+        if on_epoch is not None:
+            on_epoch(variant, k, json.loads((d / f"epoch_{ep:02d}.json").read_text()))
         log(
             f"{variant}/fold{k} epoch {ep + 1}/{a.epochs}: loss {loss:.4f} val AUROC {auroc:.4f} AUPRC {auprc:.4f} ({time.time() - t0:.0f}s)"
         )
@@ -276,9 +309,9 @@ def _model(d: Path, dim: int, head: str) -> tuple[torch.nn.Module, Scaler, dict]
 
 
 def report(a) -> dict:
-    fs = load_features(a.train_cache, expected_config=NEW_RULES)
+    fs = load_features(a.train_cache, expected_config=a.rules)
     pre = load_features(a.prelim_all_cache, expected_config=OLD_RULES, mode="all")
-    safe = safe_slide_names(a.slide_table, NEW_RULES)
+    safe = safe_slide_names(a.slide_table, a.rules)
     src = neg_source(fs, safe)
     old_label = (fs.labels == 1) | (src == "safe_slide")  # Step-4a label set
     masks = prelim_masks(pre, a.slide_table, a.annotations)
@@ -446,7 +479,8 @@ def render(rep: dict) -> str:
     return "\n".join(L)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None, on_epoch: EpochHook | None = None) -> None:
+    """CLI; ``argv``/``on_epoch`` let ml/huncrc_cv.py (Hydra) build the same call."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("cmd", choices=["train", "report"])
     p.add_argument("--train-cache", type=Path, required=True)
@@ -493,7 +527,14 @@ def main() -> None:
     )
     p.add_argument("--n-boot", type=int, default=1000)
     p.add_argument("--out", type=Path, help="report: output dir (default: --runs)")
-    a = p.parse_args()
+    p.add_argument(
+        "--label-rules-from-cache",
+        action="store_true",
+        help="train on the label rules the train cache was built with "
+        "(default: the Step-8 rules only)",
+    )
+    a = p.parse_args(argv)
+    a.rules = train_rules(a)
     a.threads = a.threads or available_cpus()
     torch.set_num_threads(a.threads)
     a.slide_table = load_slide_table(
@@ -504,18 +545,26 @@ def main() -> None:
         f"{a.cmd}: threads={torch.get_num_threads()} OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')} python={sys.version.split()[0]}"
     )
     if a.cmd == "train":
-        fs = load_features(a.train_cache, expected_config=NEW_RULES)
+        fs = load_features(a.train_cache, expected_config=a.rules)
         pre = load_features(a.prelim_all_cache, expected_config=OLD_RULES, mode="all")
         assert set(fs.splits) == {"train"} and set(pre.splits) == {"test_preliminary"}
         a.runs.mkdir(parents=True, exist_ok=True)
         (a.runs / "run_config.json").write_text(
             json.dumps(
-                {k: str(v) for k, v in vars(a).items() if k != "slide_table"}, indent=2
+                {
+                    **{
+                        k: str(v)
+                        for k, v in vars(a).items()
+                        if k not in {"slide_table", "rules"}
+                    },
+                    "label_rules_fingerprint": rules_fingerprint(a.rules),
+                },
+                indent=2,
             )
         )
         for v in a.variants:
             for k in a.folds:
-                train_one(fs, pre, v, k, a.runs / v / f"fold{k}", a)
+                train_one(fs, pre, v, k, a.runs / v / f"fold{k}", a, on_epoch)
         log("train: all requested runs finished")
     else:
         if not a.annotations:

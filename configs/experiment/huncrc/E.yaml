@@ -1,0 +1,14 @@
+# @package _global_
+# HunCRC model set E: MLP head 512-256, class-balanced BCE, within-slide negatives.
+defaults:
+  - override /huncrc/head@head: mlp
+  - _self_
+
+model_set: E
+
+training:
+  class_weighting: balanced
+
+metadata:
+  run_name: E
+  description: "HunCRC E: MLP head 512-256, class-balanced BCE, within-slide negatives, carcinoma excluded; 5-fold CV on frozen prov-gigapath embeddings."

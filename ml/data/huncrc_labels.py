@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -117,6 +117,21 @@ def rules_fingerprint(config: LabelConfig) -> str:
             payload[opt] = True
     blob = json.dumps(payload, sort_keys=True).encode()
     return hashlib.sha256(blob).hexdigest()[:8]
+
+
+def rules_diff(
+    config: LabelConfig, reference: LabelConfig
+) -> dict[str, tuple[object, object]]:
+    """``{field: (config value, reference value)}`` for every field that differs."""
+    out: dict[str, tuple[object, object]] = {}
+    for f in fields(LabelConfig):
+        a, b = getattr(config, f.name), getattr(reference, f.name)
+        if a != b:
+            out[f.name] = (
+                sorted(a) if isinstance(a, frozenset) else a,
+                sorted(b) if isinstance(b, frozenset) else b,
+            )
+    return out
 
 
 def _check_slide_name(name: str) -> None:

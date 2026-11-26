@@ -1,0 +1,57 @@
+# HunCRC tile classifier, Steps 8-9 protocol: 5-fold CV of one model set on
+# frozen prov-gigapath embeddings, then the Step-7 test_preliminary report.
+#
+#   python -m ml.huncrc_cv experiment=huncrc/D data.out=/mnt/projects/.../<dir>
+#
+# A thin layer over scripts/huncrc/within_slide_cv.py (same training, same
+# resume). MLflow is optional: with no credentials, or if the server is not
+# usable, the run goes on and writes to disk only; log afterwards with
+# scripts/huncrc/log_to_mlflow.py. Never put a credential (or an ${oc.env:...}
+# interpolation) in a config: the resolved config is uploaded as an artifact.
+defaults:
+  - base
+  - huncrc/data@data: share
+  - huncrc/labels@labels: within_slide
+  - huncrc/head@head: linear
+  - huncrc/training@training: default
+  - huncrc/evaluation@evaluation: default
+  - _self_
+  - /experiment: ???
+
+model_set: ???   # B C D E; must match head + class weighting (checked)
+dry_run: false   # true: print the calls and the logging decision, train nothing
+
+mlflow:
+  enabled: true  # false: never contact MLflow (cluster jobs: no token there)
+  login: false   # true: prompt for login email + API access token (hidden)
+  tracking_uri: https://mlflow.rationai.cloud.e-infra.cz
+  timeout_s: 20
+
+logger:  # on top of configs/logger/mlflow.yaml (experiment/run name, note)
+  _target_: ml.huncrc_tracking.OptionalMLFlowLogger
+  tracking_uri: ${mlflow.tracking_uri}
+  enabled: ${mlflow.enabled}
+  login: ${mlflow.login}
+  timeout_s: ${mlflow.timeout_s}
+  log_model: false  # checkpoints stay on the share, never uploaded
+
+metadata:
+  hyperparams:  # logged by @autolog as config/<key>; no credentials here
+    config:
+      model_set: ${model_set}
+      head: ${head.kind}
+      class_weighting: ${training.class_weighting}
+      epochs: ${training.epochs}
+      neg_cap_per_slide: ${training.neg_cap}
+      lr: ${training.lr}
+      batch_size: ${training.batch_size}
+      dropout: ${head.dropout}
+      within_slide_negatives: ${labels.within_slide_negatives}
+      exclude_carcinoma: ${labels.exclude_carcinoma}
+      min_coverage: ${labels.min_coverage}
+      exclude_slides: ${labels.exclude_slides}
+      safe_categories: ${labels.safe_categories}
+      exclude_serrated: ${labels.exclude_serrated}
+      smoke_tiles_per_slide: ${training.smoke_tiles_per_slide}
+      folds: ${evaluation.folds}
+      out: ${data.out}
