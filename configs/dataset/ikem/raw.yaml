@@ -1,0 +1,15 @@
+cohort: ikem
+annotation_format: empaia
+
+data_path: /mnt/data/IKEM/colon/IBD_AI/dysplasia
+project_path: /mnt/projects/inflammatory_bowel_disease/ulcerative_colitis_dysplasia
+annot_path: ${.data_path}/annotations
+
+selected_clear_cases: ${.data_path}/IBD_dysplazie_jasne.xlsx
+selected_unclear_cases: ${.data_path}/IBD_dyspl_nejasne.xlsx
+
+regex_pattern: '^\d+_\d+_HE_[0-9A-Z]+\.(czi|json)$'
+
+target_groups:
+  - "LG Dysplasia"
+  - "HG Dysplasia"

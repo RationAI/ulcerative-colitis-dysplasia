@@ -1,0 +1,13 @@
+defaults:
+  - /dataset/huncrc/processed@_here_
+  - /dataset/huncrc/processed_w_tissue@_here_
+  - _self_
+
+epithelium: ${.project_path}/epithelium_masks/raw
+
+mlflow_uris:
+  qc: mlflow-artifacts:/168/<QC_RUN>/artifacts/qc_output
+  splits:
+      train: mlflow-artifacts:/168/<SPLIT_RUN>/artifacts/train.csv
+      test_preliminary: mlflow-artifacts:/168/<SPLIT_RUN>/artifacts/test_preliminary.csv
+      test_final: mlflow-artifacts:/168/<SPLIT_RUN>/artifacts/test_final.csv

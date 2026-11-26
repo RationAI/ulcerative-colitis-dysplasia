@@ -1,0 +1,6 @@
+defaults:
+  - /dataset/huncrc/processed@_here_
+  - _self_
+
+mlflow_uris:
+  tissue: mlflow-artifacts:/168/<TISSUE_RUN>/artifacts/tissue_masks

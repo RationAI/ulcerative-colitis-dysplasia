@@ -1,0 +1,15 @@
+defaults:
+  - /dataset/huncrc/processed_w_masks@_here_
+  - _self_
+
+#: Native pyramid level 2 — the main resolution (~0.5 mpp, shared with IKEM level 1).
+#: mpp from code comments — verify with openslide before first run.
+mpp: 0.4851
+tile_extent: 224
+stride: 112
+
+mlflow_uris:
+  tiling:
+    train: mlflow-artifacts:/168/<TILING_RUN_L2>/artifacts/tiling/train
+    test_preliminary: mlflow-artifacts:/168/<TILING_RUN_L2>/artifacts/tiling/test_preliminary
+    test_final: mlflow-artifacts:/168/<TILING_RUN_L2>/artifacts/tiling/test_final
