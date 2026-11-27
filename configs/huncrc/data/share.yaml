@@ -1,8 +1,9 @@
 # Inputs and outputs on the project share (jobs mount only /mnt/data and /mnt/projects).
 preprocessing: /mnt/projects/huncrc_dysplasia/preprocessing
 tiling: ${.preprocessing}/tiling_200
-embeddings: ${.preprocessing}/embeddings/prov-gigapath
-embedding_dim: 1536
+embedding_model: prov-gigapath   # dir name under embeddings/, enters the cache key
+embedding_dim: 1536               # checked against the stored vectors
+embeddings: ${.preprocessing}/embeddings/${.embedding_model}
 annotations: ${.preprocessing}/annotations
 slide_csv: /mnt/data/Public/Public/colorectum/TCIA_HunCRC/slide_level_annotations.csv
 cache_root: /mnt/projects/huncrc_dysplasia/tile_classifier/cache

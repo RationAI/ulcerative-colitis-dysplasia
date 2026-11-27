@@ -172,6 +172,21 @@ def fold_rows(
 EpochHook = Callable[[str, int, dict[str, Any]], None]
 
 
+def load_caches(a) -> tuple[FeatureSet, FeatureSet]:
+    """Train and test_preliminary caches; the second must hold the same embedding."""
+    fs = load_features(a.train_cache, expected_config=a.rules)
+    model, dim = fs.embedding
+    pre = load_features(
+        a.prelim_all_cache,
+        expected_config=OLD_RULES,
+        mode="all",
+        expected_model=model,
+        expected_dim=dim,
+    )
+    log(f"embedding: {model}, {dim}-d (train and test_preliminary caches)")
+    return fs, pre
+
+
 def train_rules(a) -> LabelConfig:
     """The Step-8 rules, or (``--label-rules-from-cache``) those of the train cache.
 
@@ -309,8 +324,7 @@ def _model(d: Path, dim: int, head: str) -> tuple[torch.nn.Module, Scaler, dict]
 
 
 def report(a) -> dict:
-    fs = load_features(a.train_cache, expected_config=a.rules)
-    pre = load_features(a.prelim_all_cache, expected_config=OLD_RULES, mode="all")
+    fs, pre = load_caches(a)
     safe = safe_slide_names(a.slide_table, a.rules)
     src = neg_source(fs, safe)
     old_label = (fs.labels == 1) | (src == "safe_slide")  # Step-4a label set
@@ -545,8 +559,7 @@ def main(argv: list[str] | None = None, on_epoch: EpochHook | None = None) -> No
         f"{a.cmd}: threads={torch.get_num_threads()} OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')} python={sys.version.split()[0]}"
     )
     if a.cmd == "train":
-        fs = load_features(a.train_cache, expected_config=a.rules)
-        pre = load_features(a.prelim_all_cache, expected_config=OLD_RULES, mode="all")
+        fs, pre = load_caches(a)
         assert set(fs.splits) == {"train"} and set(pre.splits) == {"test_preliminary"}
         a.runs.mkdir(parents=True, exist_ok=True)
         (a.runs / "run_config.json").write_text(
@@ -558,6 +571,8 @@ def main(argv: list[str] | None = None, on_epoch: EpochHook | None = None) -> No
                         if k not in {"slide_table", "rules"}
                     },
                     "label_rules_fingerprint": rules_fingerprint(a.rules),
+                    "embedding_model": fs.embedding[0],
+                    "embedding_dim": fs.embedding[1],
                 },
                 indent=2,
             )

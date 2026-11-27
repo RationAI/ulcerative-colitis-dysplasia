@@ -298,3 +298,32 @@ def test_autolog_upload_has_no_credentials(
     assert not any("sup3r-secret" in t for t in texts)
     assert not any(p.suffix in {".pt", ".ckpt", ".npy"} for p in out.rglob("*"))
     assert os.environ.get("MLFLOW_TRACKING_TOKEN") == "sup3r-secret"  # process env only
+
+
+def test_within_slide_cv_refuses_mixed_embeddings(tmp_path: Path) -> None:
+    """Train cache of one embedding + test_preliminary cache of another: refused."""
+    import pandas as pd
+
+    from ml.data.huncrc_features import build_features
+    from ml.data.huncrc_labels import LabelConfig, load_slide_table
+    from tests.huncrc_synth import build
+
+    c = build(tmp_path)
+    table = load_slide_table(pd.read_parquet(c["tiling"] / "slides" / "slides.parquet"),
+                             pd.read_csv(c["slide_csv"], dtype=str))  # fmt: skip
+    other = tmp_path / "embeddings" / "virchow2"
+    other.mkdir(parents=True)
+    for f in (tmp_path / "emb").glob("*.parquet"):
+        (other / f.name).write_bytes(f.read_bytes())
+    prelim = build_features(other, table, ["test_preliminary"], LabelConfig(),
+                            tmp_path / "cache", dim=16, mode="all")  # fmt: skip
+    args = ["train", "--train-cache", c["train_within_slide"], "--prelim-all-cache",
+            prelim, "--runs", tmp_path / "runs", "--tiling", c["tiling"],
+            "--slide-csv", c["slide_csv"], "--variants", "B", "--folds", "0",
+            "--epochs", "1"]  # fmt: skip
+    proc = subprocess.run([sys.executable, str(REPO / "scripts/huncrc/within_slide_cv.py"),
+                           *map(str, args)], capture_output=True, text=True,
+                          env={**os.environ, "PYTHONPATH": str(REPO)}, check=False)  # fmt: skip
+    assert proc.returncode != 0 and "EmbeddingMismatchError" in proc.stderr
+    assert "holds virchow2 16-d" in proc.stderr and "expected emb 16-d" in proc.stderr
+    assert not (tmp_path / "runs" / "B").exists()  # nothing trained

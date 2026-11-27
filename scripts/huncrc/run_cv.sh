@@ -27,6 +27,8 @@ VARIANTS="${VARIANTS:-B C}"
 FOLDS="${FOLDS:-0 1 2 3 4}"
 N_BOOT="${N_BOOT:-1000}"
 SMOKE_TILES="${SMOKE_TILES:-}"            # e.g. 300 for a quick end-to-end check
+EMB_MODEL="${EMB_MODEL:-prov-gigapath}"   # embeddings in $PRE/embeddings/$EMB_MODEL
+EMB_DIM="${EMB_DIM:-1536}"
 cgroup_cpus() {  # CPU quota of this container; nproc shows the node's cores in a pod
   local q p
   if read -r q p < /sys/fs/cgroup/cpu.max 2>/dev/null && [[ "$q" != max ]]; then
@@ -48,12 +50,13 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 mkdir -p "$OUT" "$CACHE_ROOT"
 cd "$REPO"
 echo "[$(ts)] run_cv.sh $cmd: threads=$THREADS out=$OUT cache_root=$CACHE_ROOT git=$(git rev-parse --short HEAD)$(git diff --quiet -- ml scripts || echo '+dirty')"
-echo "[$(ts)] host=$(hostname) nproc=$(nproc) cgroup cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo n/a) memory.max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo n/a) variants=$VARIANTS folds=$FOLDS epochs=$EPOCHS"
+echo "[$(ts)] host=$(hostname) nproc=$(nproc) cgroup cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo n/a) memory.max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo n/a) variants=$VARIANTS folds=$FOLDS epochs=$EPOCHS embedding=$EMB_MODEL/$EMB_DIM"
 
 common=(--tiling "$PRE/tiling_200" --slide-csv "$SLIDE_CSV")
 build() {  # prints the cache dir; reuses an existing cache with the same key
   "$PY" scripts/huncrc/build_feature_cache.py "${common[@]}" \
-    --embeddings "$PRE/embeddings/prov-gigapath" --cache-root "$CACHE_ROOT" "$@" | head -1
+    --embeddings "$PRE/embeddings/$EMB_MODEL" --embedding-model "$EMB_MODEL" --dim "$EMB_DIM" \
+    --cache-root "$CACHE_ROOT" "$@" | head -1
 }
 TRAIN_CACHE="$(build --splits train --within-slide-negatives --exclude-carcinoma --annotations "$PRE/annotations")"
 PRELIM_ALL="$(build --splits test_preliminary --mode all)"

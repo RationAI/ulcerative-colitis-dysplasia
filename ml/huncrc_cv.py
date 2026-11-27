@@ -245,11 +245,13 @@ def feature_caches(config: DictConfig) -> tuple[str, str]:
     table = bfc.slide_table(Path(d.tiling), Path(d.slide_csv))
     ann = Path(d.annotations) if rules.needs_annotations else None
     dim = int(d.embedding_dim)
+    model = str(d.embedding_model)
     train = build_features(Path(d.embeddings), table, ["train"], rules,
-                           Path(d.cache_root), dim=dim, annotations=ann)  # fmt: skip
+                           Path(d.cache_root), dim=dim, annotations=ann,
+                           model=model)  # fmt: skip
     prelim = build_features(Path(d.embeddings), table, ["test_preliminary"],
                             LabelConfig(), Path(d.cache_root), dim=dim,
-                            mode="all")  # fmt: skip
+                            mode="all", model=model)  # fmt: skip
     return str(train), str(prelim)
 
 

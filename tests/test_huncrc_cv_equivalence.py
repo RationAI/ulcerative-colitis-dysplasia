@@ -100,6 +100,9 @@ def test_same_cache_keys_and_contents(runs: dict[str, Path]) -> None:
     keys = {p: sorted(d.name for d in (runs[p] / "cache").iterdir()) for p in runs}
     assert keys["cli"] == keys["hydra"]
     assert len(keys["cli"]) == 2 and any("-train-r729e9556-" in k for k in keys["cli"])
+    assert not any(
+        "-e" in k.split("-r", 1)[1] for k in keys["cli"]
+    )  # default embedding
     for key in keys["cli"]:
         a, b = (runs[p] / "cache" / key for p in ("cli", "hydra"))
         assert _digest(a) == _digest(b), key

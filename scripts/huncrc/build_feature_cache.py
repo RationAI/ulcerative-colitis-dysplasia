@@ -6,10 +6,13 @@ All paths come from arguments; nothing is hard-coded::
         --tiling <preprocessing>/tiling_200 \
         --slide-csv <TCIA_HunCRC>/slide_level_annotations.csv \
         --embeddings <preprocessing>/embeddings/prov-gigapath \
-        --cache-root <local scratch> --splits train [--min-coverage 0.0]
+        --embedding-model prov-gigapath --dim 1536 \
+        --cache-root <share cache dir> --splits train [--min-coverage 0.0]
 
 The cache directory name carries min_coverage, the splits, the label-rule
-fingerprint and the cache version. test_final is refused by the loader.
+fingerprint, the embedding (model + dim; empty for prov-gigapath 1536) and the
+cache version. --embedding-model must equal the embeddings dir name, and
+--dim is checked against the stored vectors. test_final is refused by the loader.
 Prints peak RSS at the end.
 """
 
@@ -43,6 +46,14 @@ def main() -> None:
     )
     p.add_argument(
         "--embeddings", type=Path, required=True, help="dir of <slide>.parquet"
+    )
+    p.add_argument(
+        "--embedding-model",
+        required=True,
+        help="e.g. prov-gigapath, virchow2; must equal the --embeddings dir name",
+    )
+    p.add_argument(
+        "--dim", type=int, required=True, help="embedding dimension, e.g. 1536, 2560"
     )
     p.add_argument("--cache-root", type=Path, required=True)
     p.add_argument("--splits", nargs="+", default=["train"])
@@ -79,10 +90,18 @@ def main() -> None:
         a.splits,
         config,
         a.cache_root,
+        dim=a.dim,
         mode=a.mode,
         annotations=a.annotations,
+        model=a.embedding_model,
     )
-    fs = load_features(out, expected_config=config, mode=a.mode)
+    fs = load_features(
+        out,
+        expected_config=config,
+        mode=a.mode,
+        expected_model=a.embedding_model,
+        expected_dim=a.dim,
+    )
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**20
     size = fs.features.nbytes / 2**30
     print(

@@ -39,6 +39,8 @@ metadata:
   hyperparams:  # logged by @autolog as config/<key>; no credentials here
     config:
       model_set: ${model_set}
+      embedding_model: ${data.embedding_model}
+      embedding_dim: ${data.embedding_dim}
       head: ${head.kind}
       class_weighting: ${training.class_weighting}
       epochs: ${training.epochs}
