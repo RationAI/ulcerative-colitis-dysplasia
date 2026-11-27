@@ -44,6 +44,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from rationai.mlkit import Trainer
 
 from ml.atomic_checkpoint_io import AtomicCheckpointIO
+from ml.callbacks import YoudenThreshold
 from ml.data.huncrc_data_module import HunCRCFoldData
 from ml.data.huncrc_features import FeatureSet, load_features
 from ml.data.huncrc_folds import neg_source
@@ -54,7 +55,7 @@ from ml.data.huncrc_labels import (
     rules_fingerprint,
     safe_slide_names,
 )
-from ml.huncrc_eval import evaluate, weighted_auroc_ap, youden_threshold
+from ml.huncrc_eval import evaluate, weighted_auroc_ap
 from ml.huncrc_head import HunCRCHead
 from ml.huncrc_train import (
     Scaler,
@@ -194,8 +195,7 @@ def train_one(
         a.cap_seed, a.smoke_tiles_per_slide, cfg.batch_size, cfg.super_batch, cfg.seed,
     )  # fmt: skip
     data.setup("fit")  # rows, scaler and class weights, for the log line below
-    x, y, val, sc, cnt, cw = (fs.features, fs.labels, data.val_rows, data.scaler,
-                              data.counts, data.class_weights)  # fmt: skip
+    x, sc, cnt, cw = fs.features, data.scaler, data.counts, data.class_weights
     ckpt = d / "checkpoints" / "last.ckpt"  # Lightning's, after every epoch
     # its "epoch" is the number of completed epochs
     resume = torch.load(ckpt, weights_only=False)["epoch"] if ckpt.is_file() else None
@@ -210,6 +210,7 @@ def train_one(
     module = HunCRCHead(
         head, x.shape[1], cfg.dropout, cfg.lr, cfg.weight_decay, cfg.seed
     )
+    youden = YoudenThreshold(d)
     trainer = Trainer(
         max_epochs=cfg.epochs,
         accelerator="cpu",
@@ -220,6 +221,7 @@ def train_one(
         num_sanity_val_steps=0,
         callbacks=[
             EpochFiles(d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
+            youden,
             # after the run files (checkpoint callbacks run last), as the reference
             # wrote the weights last; by default it would save at validation end
             ModelCheckpoint(
@@ -233,11 +235,7 @@ def train_one(
     )
     t0 = time.time()
     trainer.fit(module, datamodule=data, ckpt_path=ckpt if resume is not None else None)
-    hist = [
-        json.loads((d / f"epoch_{e:02d}.json").read_text()) for e in range(a.epochs)
-    ]
-    best = int(np.argmax([h["val_auprc"] for h in hist]))
-    thr = youden_threshold(y[val], np.load(d / f"epoch_{best:02d}_val.npy"))
+    best, thr = youden.best_epoch, youden.threshold
     model = make_head(head, x.shape[1], cfg.dropout)
     model.load_state_dict(
         torch.load(d / f"epoch_{best:02d}.pt", weights_only=False)["model"]
