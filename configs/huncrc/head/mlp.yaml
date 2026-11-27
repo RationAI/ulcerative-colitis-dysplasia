@@ -1,0 +1,3 @@
+kind: mlp  # Dropout -> 1536-512-256 ReLU -> Linear(256, 1)
+hidden: [512, 256]
+dropout: 0.5

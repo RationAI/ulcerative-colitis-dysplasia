@@ -1,0 +1,10 @@
+# @package _global_
+# HunCRC model set C: linear head, class-balanced BCE, within-slide negatives.
+model_set: C
+
+training:
+  class_weighting: balanced
+
+metadata:
+  run_name: C
+  description: "HunCRC C: linear head, class-balanced BCE, within-slide negatives, carcinoma excluded; 5-fold CV on frozen prov-gigapath embeddings."

@@ -1,0 +1,7 @@
+folds: [0, 1, 2, 3, 4]
+model_selection: max validation AUPRC  # fixed in within_slide_cv.py
+threshold: Youden J on the validation fold
+report: true      # Step-7 test_preliminary report after training
+n_boot: 1000
+a_runs: null      # report: Step-4a runs dir to compare against (optional)
+other_runs: []    # report: more runs dirs holding B/C/D/E

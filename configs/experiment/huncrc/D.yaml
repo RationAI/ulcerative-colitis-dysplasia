@@ -1,0 +1,11 @@
+# @package _global_
+# HunCRC model set D: MLP head 512-256, unweighted BCE, within-slide negatives.
+defaults:
+  - override /huncrc/head@head: mlp
+  - _self_
+
+model_set: D
+
+metadata:
+  run_name: D
+  description: "HunCRC D: MLP head 512-256, unweighted BCE, within-slide negatives, carcinoma excluded; 5-fold CV on frozen prov-gigapath embeddings."
