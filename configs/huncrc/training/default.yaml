@@ -1,0 +1,13 @@
+# Fixed in ml/huncrc_train.TrainConfig; the entry point refuses other values
+# until within_slide_cv.py takes them as arguments.
+epochs: 10
+class_weighting: none  # none | balanced
+neg_cap: 5000          # max negatives per slide, training only
+cap_seed: 0
+lr: 1.0e-4
+batch_size: 512
+weight_decay: 0.01
+optimizer: AdamW
+seed: fold index       # seed = fold, as in within_slide_cv.py
+smoke_tiles_per_slide: null  # e.g. 300 for a plumbing test (never the main experiment)
+threads: null          # default: the cgroup CPU quota

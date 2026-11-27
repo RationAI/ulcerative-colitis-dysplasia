@@ -1,0 +1,12 @@
+# Label rules (ml/data/huncrc_labels.LabelConfig); these values are the Step-8
+# rules the final model sets B-E were trained with. Any of them may be changed:
+# the train cache is then rebuilt under a new key, within_slide_cv.py trains on
+# the rules recorded in that cache (--label-rules-from-cache), and the run
+# prints a warning naming every field that differs from Step 8.
+# Evaluation (the test_preliminary all-tile cache) keeps the Step-7 protocol.
+min_coverage: 0.0               # coverage >= this (and > 0) is positive
+exclude_slides: ["043", "140", "135"]
+safe_categories: [negative, non_neoplastic_lesion]
+exclude_serrated: true
+within_slide_negatives: true    # strict-normal tiles of positive slides are negatives
+exclude_carcinoma: true         # carcinoma tiles never enter training
