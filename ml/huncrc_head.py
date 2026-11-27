@@ -5,6 +5,10 @@ head's parameters, BCE with logits per tile (optionally class-weighted), and
 dropout seeded from ``(seed, epoch)`` only, so a resumed run continues exactly
 as an uninterrupted one. The shuffling comes from
 :class:`ml.data.huncrc_tiles.EpochPermutation`, seeded the same way.
+
+torchmetrics measures the training batches for monitoring only
+(:meth:`HunCRCHead.pop_monitoring`). It returns float32, so it never
+writes a run file or selects an epoch; those use ml.huncrc_eval in float64.
 """
 
 from __future__ import annotations
@@ -15,6 +19,8 @@ import torch
 from lightning import LightningModule
 from torch import Tensor, nn
 from torch.optim import AdamW
+from torchmetrics import MetricCollection
+from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 
 from ml.huncrc_train import make_head
 
@@ -40,6 +46,11 @@ class HunCRCHead(LightningModule):
         self.seed = seed
         self.criterion = nn.BCEWithLogitsLoss(reduction="none")
         self._loss_sum, self._loss_count = 0.0, 0
+        #: monitoring only (float32): never in a run file, never selects an epoch
+        self.train_monitor = MetricCollection(
+            {"auroc": BinaryAUROC(), "auprc": BinaryAveragePrecision()},
+            prefix="monitor_train_",
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         return self.head(x).squeeze(1)
@@ -50,13 +61,21 @@ class HunCRCHead(LightningModule):
 
     def training_step(self, batch: TileBatch) -> Tensor:
         x, y, w = batch
-        per_tile = self.criterion(self(x), y)
+        logits = self(x)
+        per_tile = self.criterion(logits, y)
         if w is not None:
             per_tile = per_tile * w
         loss = per_tile.mean()
         self._loss_sum += float(loss.detach()) * len(y)
         self._loss_count += len(y)
+        self.train_monitor.update(torch.sigmoid(logits.detach()), y.int())
         return loss
+
+    def pop_monitoring(self) -> dict[str, float]:
+        """The epoch's monitoring metrics (torchmetrics, float32), then reset."""
+        out = {k: float(v) for k, v in self.train_monitor.compute().items()}
+        self.train_monitor.reset()
+        return out
 
     def on_validation_epoch_start(self) -> None:
         self._val_scores: list[Tensor] = []

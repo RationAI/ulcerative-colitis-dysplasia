@@ -171,12 +171,13 @@ class EpochFiles(Callback):
         state = copy.deepcopy({"epoch": ep, "model": module.head.state_dict(),
                                "optimizer": trainer.optimizers[0].state_dict()})  # fmt: skip
         save(state, d / f"epoch_{ep:02d}.pt", "pt")  # written last = epoch complete
+        # monitoring only, never written to a run file
+        monitor = module.pop_monitoring()
         # e.g. live MLflow from ml/huncrc_cv.py; the hook must not raise
         if self.on_epoch is not None:
             variant, k = self.name.split("/fold")
-            self.on_epoch(
-                variant, int(k), json.loads((d / f"epoch_{ep:02d}.json").read_text())
-            )
+            rec = json.loads((d / f"epoch_{ep:02d}.json").read_text())
+            self.on_epoch(variant, int(k), rec | monitor)
         log(
             f"{self.name} epoch {ep + 1}/{self.epochs}: loss {module.train_loss:.4f} val AUROC {auroc:.4f} AUPRC {auprc:.4f} ({time.time() - self.t0:.0f}s)"
         )
