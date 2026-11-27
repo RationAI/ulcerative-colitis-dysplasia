@@ -5,7 +5,9 @@ parquets of the requested splits (test_final is refused):
 
 1. cheap columns only (``slide_id, x, y, LG, HG``) -> labels -> the number of
    labelled tiles (label 0/1);
-2. the ``embedding`` column in row batches, cast float64 -> float32 per batch
+2. the ``embedding`` column in row batches, cast to float32 per batch (stored
+   as float64, float32 or float16: prov-gigapath files hold float64, Virchow2
+   files float16)
    and written straight into a pre-allocated ``np.lib.format.open_memmap``.
 
 So the feature matrix never exists in RAM as float64, and never as a whole
@@ -14,7 +16,11 @@ columns. The cache directory holds ``features.npy`` (float32, N x D),
 ``labels.npy`` (int8), ``slide_names.npy`` (<U3), ``folds.npy`` (int8, -1 for
 no fold), ``splits.npy``, ``x.npy``, ``y.npy``, ``coverage.npy`` and
 ``meta.json``. It is keyed by the label config (``min_coverage`` first), the
-splits and the slide list; a different key builds a new directory.
+splits, the slide list and the embedding (model + dimension); a different key
+builds a new directory. Caches of the default embedding (prov-gigapath,
+1536-d) keep the keys they had before the embedding entered the key; any other
+model or dimension adds ``-e<model>-d<dim>``, so two embeddings can never share
+a cache. Loading can verify the model and dimension (``check_cache_meta``).
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -52,6 +59,12 @@ if TYPE_CHECKING:
 #: Bump when the cache LAYOUT or the feature extraction changes.
 CACHE_VERSION = 2
 EMBEDDING = "embedding"
+#: The embedding every cache was built from before the model entered the key.
+#: Its keys carry no embedding tag, so those caches stay valid.
+DEFAULT_MODEL = "prov-gigapath"
+DEFAULT_DIM = 1536
+_MODEL_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+_FLOAT_TYPES = (pa.float16(), pa.float32(), pa.float64())
 
 
 @dataclass(frozen=True)
@@ -72,6 +85,11 @@ class FeatureSet:
 
     def __len__(self) -> int:
         return len(self.labels)
+
+    @property
+    def embedding(self) -> tuple[str, int]:
+        """(model, dim) this cache was built from."""
+        return cache_embedding(self.meta)
 
     def select(self, mask: np.ndarray) -> FeatureSet:
         """Row subset. Features stay a view only for slices; fancy masks copy."""
@@ -101,6 +119,31 @@ class StaleCacheError(RuntimeError):
     """The cache was built under different label rules or a different cache version."""
 
 
+class EmbeddingMismatchError(RuntimeError):
+    """The cache holds a different embedding model or dimension than expected."""
+
+
+def embedding_tag(model: str, dim: int) -> str:
+    """Cache-key part for the embedding; empty for the default (prov-gigapath, 1536)."""
+    if not _MODEL_NAME.match(model):
+        raise ValueError(
+            f"embedding model must match {_MODEL_NAME.pattern}, got {model!r}"
+        )
+    if int(dim) != dim or dim <= 0:
+        raise ValueError(f"embedding dimension must be a positive int, got {dim!r}")
+    return "" if (model, dim) == (DEFAULT_MODEL, DEFAULT_DIM) else f"-e{model}-d{dim}"
+
+
+def cache_embedding(meta: dict[str, Any]) -> tuple[str, int]:
+    """(model, dim) of a cache.
+
+    Caches built before ``embedding_model`` was recorded name it by their
+    source dir (``.../embeddings/prov-gigapath``).
+    """
+    model = meta.get("embedding_model") or Path(str(meta["source"])).name
+    return str(model), int(meta["dim"])
+
+
 def _config_dict(config: LabelConfig) -> dict[str, Any]:
     return {
         k: sorted(v) if isinstance(v, frozenset) else v
@@ -113,14 +156,18 @@ def cache_key(
     splits: Iterable[str],
     slide_names: Iterable[str],
     mode: str = "labelled",
+    *,
+    model: str = DEFAULT_MODEL,
+    dim: int = DEFAULT_DIM,
 ) -> str:
-    """``mc<min_coverage>-<splits>-r<rule fingerprint>-v<cache version>-<slides hash>``.
+    """``mc<min_coverage>-<splits>-r<rules>[-e<model>-d<dim>]-v<version>-<slides hash>``.
 
     The rule fingerprint covers min_coverage, exclude_slides, safe_categories,
     exclude_serrated and ``LABEL_RULES_VERSION``; changing any of them, or
     ``CACHE_VERSION``, gives a new key and therefore a new build. An
     ``mode="all"`` cache (every tile, for evaluation only) gets ``-all`` after
-    the splits; labelled-cache keys are unchanged.
+    the splits; labelled-cache keys are unchanged. The embedding tag is empty
+    for the default embedding (see :func:`embedding_tag`).
     """
     if mode not in TILE_MODES:
         raise ValueError(f"mode must be one of {TILE_MODES}, got {mode!r}")
@@ -132,12 +179,22 @@ def cache_key(
     return (
         f"mc{config.min_coverage:g}-{'+'.join(splits)}"
         f"{'-all' if mode == 'all' else ''}"
-        f"-r{rules}-v{CACHE_VERSION}-{digest}"
+        f"-r{rules}{embedding_tag(model, dim)}-v{CACHE_VERSION}-{digest}"
     )
 
 
-def check_cache_meta(meta: dict[str, Any], config: LabelConfig | None) -> None:
-    """Raise :class:`StaleCacheError` if ``meta`` does not match the current code."""
+def check_cache_meta(
+    meta: dict[str, Any],
+    config: LabelConfig | None,
+    model: str | None = None,
+    dim: int | None = None,
+) -> None:
+    """Refuse a cache that does not match the code or the expected embedding.
+
+    :class:`StaleCacheError` for other label rules or versions,
+    :class:`EmbeddingMismatchError` for another embedding than ``model`` /
+    ``dim`` (each checked only when given).
+    """
     if meta.get("version") != CACHE_VERSION:
         raise StaleCacheError(
             f"cache version {meta.get('version')} != {CACHE_VERSION}; rebuild"
@@ -154,12 +211,44 @@ def check_cache_meta(meta: dict[str, Any], config: LabelConfig | None) -> None:
                 f"cache built with rules {meta.get('rules_fingerprint')} "
                 f"({meta.get('config')}), expected {want} ({_config_dict(config)})"
             )
+    got_model, got_dim = cache_embedding(meta)
+    if (model is not None and got_model != model) or (
+        dim is not None and got_dim != dim
+    ):
+        raise EmbeddingMismatchError(
+            f"REFUSED: cache {meta.get('key')} holds {got_model} {got_dim}-d embeddings "
+            f"(source {meta.get('source')}), expected "
+            f"{model or got_model} {dim or got_dim}-d. Embeddings of different models "
+            "are never mixed; build a cache for this embedding."
+        )
+
+
+def _check_embedding_dim(path: Path, dim: int) -> None:
+    """Refuse before building when the first stored vector is not ``dim`` long."""
+    pf = pq.ParquetFile(path)
+    first = next(pf.iter_batches(batch_size=1, columns=[EMBEDDING]), None)
+    if first is None or first.num_rows == 0:
+        return  # an empty slide file; pass 2 checks every row anyway
+    got = len(first.column(EMBEDDING)[0].as_py())
+    if got != dim:
+        raise ValueError(
+            f"embedding length {got} in {path.name} != dim {dim}: pass the "
+            "dimension of this embedding model"
+        )
 
 
 def _embedding_block(column: pa.Array | pa.ChunkedArray, dim: int) -> np.ndarray:
-    """``list<double>`` column -> float64 (n, dim) array, validating every row."""
+    """``list<float16|float32|float64>`` column -> (n, dim) array, stored dtype.
+
+    Every row is validated; the caller casts to float32.
+    """
     if isinstance(column, pa.ChunkedArray):
         column = column.combine_chunks()
+    value_type = getattr(column.type, "value_type", None)
+    if value_type not in _FLOAT_TYPES:
+        raise TypeError(
+            f"embedding column must be a list of float16/float32/float64, got {column.type}"
+        )
     if column.null_count:
         raise ValueError("null embeddings")
     lengths = pc.list_value_length(column).to_numpy(zero_copy_only=False)
@@ -196,6 +285,7 @@ def build_features(
     overwrite: bool = False,
     mode: str = "labelled",
     annotations: Path | None = None,
+    model: str | None = None,
 ) -> Path:
     """Build (or reuse) the cache for ``splits``; returns its directory.
 
@@ -207,16 +297,31 @@ def build_features(
     ``annotations`` (dir of ``<slide>.json`` squares) is required when the label
     config uses the strict-normal / carcinoma rules (``config.needs_annotations``);
     the flags are then computed exactly from the squares (see huncrc_annotations).
+
+    ``model`` names the embedding (default: the name of ``emb_dir``, e.g.
+    ``.../embeddings/prov-gigapath``); an explicit name must equal that dir
+    name. ``dim`` is checked against the first embedding before anything is built.
     """
     if config.needs_annotations and annotations is None:
         raise ValueError("this label config needs annotations=<dir of slide JSONs>")
+    emb_dir = Path(emb_dir)
+    if model is None:
+        model = emb_dir.name
+    elif model != emb_dir.name:
+        raise EmbeddingMismatchError(
+            f"REFUSED: embedding model {model!r} but the embeddings dir is {emb_dir} "
+            f"(named {emb_dir.name!r}); the dir name must be the model name"
+        )
     splits = tuple(sorted(set(splits)))
     wanted = split_slide_ids(slide_table, splits)  # refuses test_final
-    key = cache_key(config, splits, wanted["name"], mode)
+    key = cache_key(config, splits, wanted["name"], mode, model=model, dim=dim)
     out = Path(cache_root) / key
     if (out / "meta.json").is_file() and not overwrite:
-        check_cache_meta(json.loads((out / "meta.json").read_text()), config)
+        check_cache_meta(
+            json.loads((out / "meta.json").read_text()), config, model, dim
+        )
         return out
+    _check_embedding_dim(emb_dir / f"{wanted['name'].iloc[0]}.parquet", dim)
 
     # pass 1: labels from cheap columns, per-slide files of `splits` only
     tiles = load_tiles(emb_dir, slide_table, splits)
@@ -317,6 +422,7 @@ def build_features(
         "slides": sorted(wanted["name"]),
         "n": n,
         "dim": dim,
+        "embedding_model": model,
         "n_pos": int((arrays["labels"] == 1).sum()),
         "n_neg": int((arrays["labels"] == 0).sum()),
         "tiles": mode,
@@ -346,8 +452,13 @@ def load_features(
     expected_config: LabelConfig | None = None,
     mmap: bool = True,
     mode: str = "labelled",
+    expected_model: str | None = None,
+    expected_dim: int | None = None,
 ) -> FeatureSet:
-    """Load a cache; with ``expected_config`` its label rules are verified.
+    """Load a cache, verifying what is expected of it.
+
+    With ``expected_config`` its label rules are verified, with
+    ``expected_model`` / ``expected_dim`` its embedding.
 
     The cache and label-rule versions are always checked against the code.
     ``mode`` must match how the cache was built, so an all-tile evaluation
@@ -355,7 +466,7 @@ def load_features(
     """
     cache_dir = Path(cache_dir)
     meta = json.loads((cache_dir / "meta.json").read_text())
-    check_cache_meta(meta, expected_config)
+    check_cache_meta(meta, expected_config, expected_model, expected_dim)
     built = meta.get("tiles", "labelled")  # caches before the all-tile mode
     if built != mode:
         raise ValueError(f"{cache_dir} is a {built!r}-tile cache, expected {mode!r}")

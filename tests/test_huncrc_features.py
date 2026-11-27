@@ -8,7 +8,9 @@ import pandas as pd
 import pytest
 
 from ml.data.huncrc_features import (
+    EmbeddingMismatchError,
     build_features,
+    cache_embedding,
     cache_key,
     get_features,
     load_features,
@@ -346,3 +348,124 @@ def test_within_slide_cache_from_synthetic_cohort(tmp_path: Path) -> None:
     # 60 tiles per slide: strict normal = tiles 32..59 on each of 10 adenoma train slides
     assert src["positive_slide_normal"] == 10 * 28
     assert new.meta["annotation_flag_counts"]["carcinoma_and_lghg"] == 0
+
+
+# --- embedding model / dimension --------------------------------------------
+
+
+def _copy_as(emb_dir: Path, name: str, scale: float = 1.0, dim: int = DIM) -> Path:
+    """The same tiles under embeddings/<name>, with other vectors (and dim)."""
+    out = emb_dir.parent / "embeddings" / name
+    out.mkdir(parents=True)
+    for f in emb_dir.glob("*.parquet"):
+        df = pd.read_parquet(f)
+        df["embedding"] = [
+            list(np.resize(np.asarray(v) * scale, dim)) for v in df["embedding"]
+        ]
+        df.to_parquet(out / f.name)
+    return out
+
+
+def test_default_embedding_keeps_the_existing_keys() -> None:
+    t = _table()
+    k = cache_key(LabelConfig(), ("train",), t["name"])
+    assert k == cache_key(LabelConfig(), ("train",), t["name"],
+                          model="prov-gigapath", dim=1536)  # fmt: skip
+    assert "-e" not in k  # e.g. the share's mc0-train-r729e9556-v2-7a57c2cd
+    v = cache_key(LabelConfig(), ("train",), t["name"], model="virchow2", dim=2560)
+    assert "-evirchow2-d2560-" in v and v != k
+    assert cache_key(LabelConfig(), ("train",), t["name"], model="prov-gigapath",
+                     dim=2560) != k  # fmt: skip
+    with pytest.raises(ValueError, match="embedding model"):
+        cache_key(LabelConfig(), ("train",), t["name"], model="Virchow 2", dim=2560)
+
+
+def test_cache_of_one_model_is_refused_for_the_other(
+    emb_dir: Path, tmp_path: Path
+) -> None:
+    t = _table()
+    gp = _copy_as(emb_dir, "prov-gigapath")
+    v2 = _copy_as(emb_dir, "virchow2", scale=-1.0)  # same dim: only the model differs
+    cache = tmp_path / "cache"
+    a = build_features(gp, t, ("train",), LabelConfig(), cache, dim=DIM)
+    b = build_features(v2, t, ("train",), LabelConfig(), cache, dim=DIM)
+    assert a != b and "-eprov-gigapath-d8-" in a.name and "-evirchow2-d8-" in b.name
+    fa, fb = load_features(a), load_features(b)
+    assert fa.embedding == ("prov-gigapath", DIM) and fb.embedding == ("virchow2", DIM)
+    assert np.array_equal(
+        np.asarray(fb.features), -np.asarray(fa.features)
+    )  # not reused
+    load_features(a, expected_model="prov-gigapath", expected_dim=DIM)
+    with pytest.raises(
+        EmbeddingMismatchError, match=r"REFUSED.*prov-gigapath 8-d.*virchow2"
+    ):
+        load_features(a, expected_model="virchow2")
+    with pytest.raises(
+        EmbeddingMismatchError, match=r"REFUSED.*virchow2 8-d.*prov-gigapath"
+    ):
+        load_features(b, expected_model="prov-gigapath", expected_dim=DIM)
+    with pytest.raises(EmbeddingMismatchError, match="expected prov-gigapath 1536-d"):
+        load_features(a, expected_dim=1536)
+    # a model name that is not the embeddings dir is refused before anything is built
+    with pytest.raises(EmbeddingMismatchError, match="dir name must be the model name"):
+        build_features(
+            gp, t, ("train",), LabelConfig(), cache, dim=DIM, model="virchow2"
+        )
+
+
+def test_wrong_dim_refused_before_building(emb_dir: Path, tmp_path: Path) -> None:
+    v2 = _copy_as(emb_dir, "virchow2", dim=2 * DIM)
+    with pytest.raises(
+        ValueError, match=rf"embedding length {2 * DIM} .* != dim {DIM}"
+    ):
+        build_features(v2, _table(), ("train",), LabelConfig(), tmp_path / "c", dim=DIM)
+    assert not (tmp_path / "c").exists() or not any((tmp_path / "c").iterdir())
+
+
+def test_old_cache_meta_names_its_embedding_by_source() -> None:
+    old = {
+        "key": "k",
+        "dim": 1536,
+        "source": "/p/preprocessing/embeddings/prov-gigapath",
+    }
+    assert cache_embedding(old) == ("prov-gigapath", 1536)
+    assert cache_embedding({**old, "embedding_model": "virchow2", "dim": 2560}) == (
+        "virchow2", 2560)  # fmt: skip
+
+
+@pytest.mark.parametrize("arrow_type", ["float16", "float32"])
+def test_low_precision_input_is_cast_to_float32(
+    emb_dir: Path, tmp_path: Path, arrow_type: str
+) -> None:
+    """Virchow2 files store float16; the cache is float32 with the stored values."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    np_type = np.dtype(arrow_type)
+    for f in emb_dir.glob("*.parquet"):
+        t = pq.read_table(f)
+        vecs = [np.asarray(v, dtype=np_type) for v in t.column("embedding").to_pylist()]
+        col = pa.array(vecs, type=pa.list_(pa.from_numpy_dtype(np_type)))
+        t = t.set_column(t.schema.get_field_index("embedding"), "embedding", col)
+        pq.write_table(t, f)
+    assert str(pq.read_schema(emb_dir / "001.parquet").field("embedding").type) == (
+        f"list<element: {'halffloat' if arrow_type == 'float16' else 'float'}>"
+    )
+    fs = get_features(emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM)
+    assert fs.features.dtype == np.float32
+    want = np.asarray(_emb("001", 0), dtype=np_type).astype(np.float32)
+    np.testing.assert_array_equal(fs.features[0], want)  # exact: no rounding twice
+
+
+def test_non_float_embeddings_are_refused(emb_dir: Path, tmp_path: Path) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    f = emb_dir / "001.parquet"
+    t = pq.read_table(f)
+    col = pa.array([[1] * DIM] * t.num_rows, type=pa.list_(pa.int64()))
+    pq.write_table(
+        t.set_column(t.schema.get_field_index("embedding"), "embedding", col), f
+    )
+    with pytest.raises(TypeError, match="list of float16/float32/float64"):
+        build_features(emb_dir, _table(), ("train",), LabelConfig(), tmp_path, dim=DIM)
