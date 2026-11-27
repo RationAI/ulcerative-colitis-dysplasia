@@ -124,7 +124,8 @@ def tile(
     annot_path = annot_folder / f"{slide_name}.json"
 
     class_generators = []
-    if row["annot_path"] == "NEGATIVE":
+    #: None when the split carries no `annot_path` column -> never "NEGATIVE".
+    if row.get("annot_path") == "NEGATIVE":
         for _ in target_groups:
             class_generators.append(Polygon() for _ in coords_list)
     else:
@@ -214,15 +215,27 @@ def tiling(
     target_groups: list[str],
 ) -> tuple[ray.data.Dataset, ray.data.Dataset]:
     qc_df = pd.read_csv(qc_folder / "qc_metrics.csv", index_col="slide_name")
+    #: qc_metrics.csv stores slide_name as an integer (and pandas re-parses "001"->1
+    #: on read either way), but qc_agg looks up df.loc[<string stem>] -- e.g. loc["001"]
+    #: KeyErrors. The IBD cohort's stems are non-numeric ("NN_NN_HE_X"), so it never hit
+    #: this; HunCRC's are "001".."200". Zero-pad to the string form the stems take.
+    #: The zfill(3) is a no-op for the IBD (string) index.
+    qc_df.index = qc_df.index.astype(str).str.zfill(3)
 
     paths = df["slide_path"].tolist()
 
     slides = (
         read_slides(paths, tile_extent=tile_extent, stride=stride, mpp=mpp)
         .map(row_hash)
-        .map(add_annot_path, fn_args=(df,))
         .map(qc_agg, fn_args=(qc_df,))  # pyright: ignore[reportArgumentType]
     )
+
+    #: Older dataset.csv files (pre-readers) carry no `annot_path` column; with the
+    #: readers, both cohorts do (HunCRC slides all have a JSON, so the value is never
+    #: "NEGATIVE"). Guard it like `fold`/`clarity`; tile() treats a missing value as
+    #: "has annotation".
+    if "annot_path" in df.columns:
+        slides = slides.map(add_annot_path, fn_args=(df,))
 
     if "fold" in df.columns:
         slides = slides.map(add_fold, fn_args=(df,))  # pyright: ignore[reportArgumentType]
@@ -303,6 +316,9 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
     qc_folder = Path(download_artifacts(config.dataset.mlflow_uris.qc))
     tissue_folder = Path(download_artifacts(config.dataset.mlflow_uris.tissue))
     annot_folder = Path(config.dataset.annot_path)
+    #: Local folder of `{stem}.tiff` episeg masks (config.dataset.epithelium); if the
+    #: masks move to MLflow later, switch this to download_artifacts like the tissue
+    #: and qc folders above.
     epithelium_folder = Path(config.dataset.epithelium)
 
     for name, split_uri in config.dataset.mlflow_uris.splits.items():
@@ -320,7 +336,7 @@ def main(config: DictConfig, logger: MLFlowLogger) -> None:
             stride=config.stride,
             mpp=config.mpp,
             tissue_threshold=config.tissue_threshold,
-            target_groups=list(config.target_groups),
+            target_groups=list(config.dataset.target_groups),
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
