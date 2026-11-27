@@ -158,7 +158,7 @@ def check_config(config: DictConfig, overrides: list[str] | None = None) -> str:
             f"class_weighting={weighting} is model set {variant}"
         )
 
-    from ml.huncrc_train import TrainConfig
+    from ml.huncrc_heads import TrainConfig
 
     t, ref = config.training, TrainConfig()
     fixed = {"lr": ref.lr, "batch_size": ref.batch_size,

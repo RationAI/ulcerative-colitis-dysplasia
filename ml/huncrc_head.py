@@ -13,22 +13,27 @@ writes a run file or selects an epoch; those use ml.huncrc_eval in float64.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from lightning import LightningModule
+from lightning import Callback, LightningModule, Trainer
 from torch import Tensor, nn
 from torch.optim import AdamW
 from torchmetrics import MetricCollection
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 
+from ml.data.huncrc_tiles import train_loader
 from ml.huncrc_eval import weighted_auroc_ap
-from ml.huncrc_train import make_head
+from ml.huncrc_heads import make_head
 
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ml.data.huncrc_tiles import TileBatch
+    from ml.huncrc_heads import Scaler
 
 
 class HunCRCHead(LightningModule):
@@ -104,3 +109,54 @@ class HunCRCHead(LightningModule):
 
     def configure_optimizers(self) -> AdamW:
         return AdamW(self.head.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
+
+class _EpochEnd(Callback):
+    def __init__(self, on_epoch: Callable[[int, nn.Module], None] | None) -> None:
+        self.on_epoch, self.losses = on_epoch, []
+
+    def on_train_epoch_end(self, trainer: Trainer, module: HunCRCHead) -> None:
+        self.losses.append(module.train_loss)
+        module.pop_monitoring()  # not used here; reset per epoch
+        if self.on_epoch is not None:
+            self.on_epoch(trainer.current_epoch, module.head)
+            module.head.train()  # on_epoch may score in eval mode
+
+
+def fit_head(
+    kind: str,
+    x: np.ndarray,
+    y: np.ndarray,
+    rows: np.ndarray,
+    scaler: Scaler,
+    epochs: int,
+    seed: int = 0,
+    *,
+    lr: float = 1e-4,
+    batch_size: int = 512,
+    on_epoch: Callable[[int, nn.Module], None] | None = None,
+) -> tuple[nn.Module, list[float], float]:
+    """Train a head on ``x[rows]`` (labels ``y[rows]``), without validation or checkpoints.
+
+    The same module, batches and seeding as the CV runner; for the sanity
+    baselines and tests. ``on_epoch(epoch, head)`` runs after every epoch.
+    Returns the trained head, the mean training loss per epoch and the seconds.
+    """
+    torch.manual_seed(seed)  # head initialisation
+    module = HunCRCHead(kind, x.shape[1], lr=lr, seed=seed)
+    end = _EpochEnd(on_epoch)
+    trainer = Trainer(
+        max_epochs=epochs,
+        accelerator="cpu",
+        devices=1,
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[end],
+    )
+    t0 = time.time()
+    trainer.fit(
+        module, train_dataloaders=train_loader(x, y, rows, scaler, batch_size, seed)
+    )
+    return module.head, end.losses, time.time() - t0

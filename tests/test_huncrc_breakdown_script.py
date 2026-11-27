@@ -3,14 +3,13 @@
 import json
 from pathlib import Path
 
-from tests.huncrc_synth import build, run_script
+from tests.huncrc_synth import build, run_script, write_step4a_runs
 
 
 def test_prelim_breakdown_score_and_report(tmp_path: Path) -> None:
     c = build(tmp_path)
     runs, out = tmp_path / "runs", tmp_path / "bd"
-    common = ["--train-cache", c["train"], "--prelim-cache", c["test_preliminary"]]
-    run_script("linear_cv.py", "train", *common, "--runs", runs, "--epochs", 1)
+    write_step4a_runs(runs, c["train"], c["test_preliminary"])
     bd = [
         "--runs", runs,
         "--all-cache", c["test_preliminary_all"],

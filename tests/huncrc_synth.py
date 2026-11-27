@@ -161,3 +161,59 @@ def run_script(name: str, *args: object) -> subprocess.CompletedProcess[str]:
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return proc
+
+
+def write_step4a_runs(runs: Path, train_cache: Path, prelim_cache: Path) -> Path:
+    """A Step-4a-shaped runs dir (variants a, b; folds 0-4) without training.
+
+    The layout linear_cv.py wrote (removed; the real Step-4a runs are saved on
+    the share): per fold val_rows.npy, scaler.npz, epoch_00.{json,pt,_val.npy},
+    prelim_scores.npy (labelled test_preliminary) and done.json. The weights
+    are a seeded random init: these runs feed the report and the breakdown,
+    whose wiring the tests check, not training.
+    """
+    import torch
+
+    from ml.data.huncrc_features import load_features
+    from ml.huncrc_eval import weighted_auroc_ap, youden_threshold
+    from ml.huncrc_heads import (
+        Scaler,
+        TrainConfig,
+        balanced_weights,
+        make_head,
+        predict,
+    )
+
+    fs, pre = load_features(train_cache), load_features(prelim_cache)
+    x, y = fs.features, fs.labels
+    for variant in ("a", "b"):
+        for k in range(5):
+            d = runs / variant / f"fold{k}"
+            d.mkdir(parents=True)
+            val = np.flatnonzero(fs.folds == k)
+            tr = np.flatnonzero((fs.folds >= 0) & (fs.folds != k))
+            sc = Scaler.fit(x, tr)
+            np.save(d / "val_rows.npy", val)
+            np.savez(d / "scaler.npz", mean=sc.mean, std=sc.std)
+            cw = balanced_weights(y[tr]) if variant == "b" else None
+            cfg = TrainConfig(epochs=1, seed=k)
+            torch.manual_seed(k)
+            model = make_head("linear", x.shape[1], cfg.dropout)
+            s = predict(model, x, val, sc)
+            auroc, auprc = weighted_auroc_ap(y[val], s)
+            np.save(d / "epoch_00_val.npy", s)
+            (d / "epoch_00.json").write_text(json.dumps({
+                "epoch": 1, "train_loss": float("nan"), "val_auroc": auroc,
+                "val_auprc": auprc, "seconds": 0.0,
+            }))  # fmt: skip
+            torch.save({"epoch": 0, "model": model.state_dict()}, d / "epoch_00.pt")
+            np.save(
+                d / "prelim_scores.npy",
+                predict(model, pre.features, np.arange(len(pre)), sc),
+            )
+            (d / "done.json").write_text(json.dumps({
+                "variant": variant, "fold": k, "best_epoch": 1,
+                "threshold": youden_threshold(y[val], s), "class_weights": cw,
+                "epochs": 1, "config": cfg.__dict__,
+            }))  # fmt: skip
+    return runs

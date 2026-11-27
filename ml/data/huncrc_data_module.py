@@ -19,8 +19,8 @@ from lightning import LightningDataModule
 from torch.utils.data import BatchSampler, DataLoader
 
 from ml.data.huncrc_folds import fold_rows
-from ml.data.huncrc_tiles import EpochPermutation, TileRows, as_batch
-from ml.huncrc_train import Scaler, balanced_weights
+from ml.data.huncrc_tiles import TileRows, as_batch, train_loader
+from ml.huncrc_heads import Scaler, balanced_weights
 from ml.run_files import save
 
 
@@ -100,15 +100,14 @@ class HunCRCFoldData(LightningDataModule):
 
     def train_dataloader(self) -> DataLoader[TileBatch]:
         assert self.scaler is not None
-        return DataLoader(
-            TileRows(self.fs.features, self.fs.labels, self.scaler, self.class_weights),
-            batch_sampler=BatchSampler(
-                EpochPermutation(self.train_rows, self.seed),
-                self.batch_size,
-                drop_last=False,
-            ),
-            collate_fn=as_batch,
-            generator=torch.Generator(),  # keeps the global RNG (dropout) untouched
+        return train_loader(
+            self.fs.features,
+            self.fs.labels,
+            self.train_rows,
+            self.scaler,
+            self.batch_size,
+            self.seed,
+            self.class_weights,
         )
 
     def val_dataloader(self) -> DataLoader[TileBatch]:

@@ -1,11 +1,11 @@
-"""Synthetic tests for ml.huncrc_train."""
-
-import io
+"""Synthetic tests for ml.huncrc_heads."""
 
 import numpy as np
 import pytest
+import torch
 
-from ml.huncrc_train import Scaler, TrainConfig, binary_metrics, predict, train_head
+from ml.huncrc_head import fit_head
+from ml.huncrc_heads import Scaler, binary_metrics, make_head, predict
 
 
 def _data(n: int = 2000, d: int = 16, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
@@ -25,11 +25,10 @@ def test_scaler_matches_numpy_on_subset() -> None:
 
 
 def test_predict_keeps_row_order() -> None:
-    x, y = _data()
+    x, _ = _data()
     sc = Scaler.fit(x, np.arange(len(x)))
-    model, _ = train_head(
-        "linear", x, y, np.arange(1000), sc, TrainConfig(epochs=1, super_batch=300)
-    )
+    torch.manual_seed(0)
+    model = make_head("linear", x.shape[1])
     rows = np.array([5, 3, 1999, 0, 3])
     s = predict(model, x, rows, sc, chunk=2)
     s_each = np.array([predict(model, x, np.array([r]), sc)[0] for r in rows])
@@ -42,9 +41,8 @@ def test_heads_learn_separable_problem() -> None:
     va = np.arange(1500, 2000)
     sc = Scaler.fit(x, tr)
     for kind in ("linear", "mlp"):
-        cfg = TrainConfig(epochs=15, lr=1e-3, batch_size=64, super_batch=500)
-        model, h = train_head(kind, x, y, tr, sc, cfg)
-        assert h.epoch_loss[-1] < h.epoch_loss[0]
+        model, losses, _ = fit_head(kind, x, y, tr, sc, 15, lr=1e-3, batch_size=64)
+        assert losses[-1] < losses[0]
         assert binary_metrics(y[va], predict(model, x, va, sc))["auroc"] > 0.95
 
 
@@ -58,36 +56,8 @@ def test_binary_metrics_constant_scores() -> None:
     assert m0["f1"] == 0.0 and m0["accuracy"] == 0.25
 
 
-def test_fit_epochs_resume_is_exact() -> None:
-    import torch
-
-    from ml.huncrc_train import fit_epochs
-
-    x, y = _data()
-    rows = np.arange(1500)
-    sc = Scaler.fit(x, rows)
-    cfg = TrainConfig(epochs=4, batch_size=64, super_batch=500, lr=1e-3)
-    full = list(fit_epochs("mlp", x, y, rows, sc, cfg))
-    saved = torch.load(_roundtrip(full[1][2]), weights_only=False)
-    resumed = list(fit_epochs("mlp", x, y, rows, sc, cfg, resume=saved))
-    assert [e for e, *_ in resumed] == [2, 3]
-    for a, b in zip(full[2:], resumed, strict=True):
-        assert a[3] == pytest.approx(b[3], rel=1e-6)
-        for k in a[2]["model"]:
-            torch.testing.assert_close(a[2]["model"][k], b[2]["model"][k])
-
-
-def _roundtrip(obj: object) -> io.BytesIO:
-    import torch
-
-    buf = io.BytesIO()
-    torch.save(obj, buf)
-    buf.seek(0)
-    return buf
-
-
 def test_balanced_weights_equalise_classes() -> None:
-    from ml.huncrc_train import balanced_weights
+    from ml.huncrc_heads import balanced_weights
 
     y = np.array([1] * 70 + [0] * 30)
     wn, wp = balanced_weights(y)

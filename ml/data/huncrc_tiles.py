@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import BatchSampler, DataLoader, Dataset, Sampler
 
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from ml.huncrc_train import Scaler
+    from ml.huncrc_heads import Scaler
 
 TileBatch = tuple[Tensor, Tensor, Tensor | None]
 
@@ -84,3 +84,23 @@ class EpochPermutation(Sampler[int]):
     def __iter__(self) -> Iterator[int]:
         rng = np.random.default_rng([self.seed, self.epoch])
         return iter(self.rows[rng.permutation(len(self.rows))].tolist())
+
+
+def train_loader(
+    x: np.ndarray,
+    y: np.ndarray,
+    rows: np.ndarray,
+    scaler: Scaler,
+    batch_size: int,
+    seed: int,
+    class_weights: tuple[float, float] | None = None,
+) -> DataLoader[TileBatch]:
+    """Training batches of ``x[rows]``: a fresh ``(seed, epoch)`` permutation per epoch."""
+    return DataLoader(
+        TileRows(x, y, scaler, class_weights),
+        batch_sampler=BatchSampler(
+            EpochPermutation(rows, seed), batch_size, drop_last=False
+        ),
+        collate_fn=as_batch,
+        generator=torch.Generator(),  # keeps the global RNG (dropout) untouched
+    )

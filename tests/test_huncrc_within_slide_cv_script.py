@@ -6,18 +6,15 @@ from pathlib import Path
 
 import numpy as np
 
-from tests.huncrc_synth import build, run_script
+from tests.huncrc_synth import build, run_script, write_step4a_runs
 
 
 def test_within_slide_cv_end_to_end(tmp_path: Path) -> None:
     c = build(tmp_path)
     paths = ["--tiling", c["tiling"], "--slide-csv", c["slide_csv"]]
-    # Step-4a style runs as the "A" reference (labelled caches + all-tile scores)
+    # Step-4a-shaped runs as the "A" reference (labelled caches + all-tile scores)
     a_runs = tmp_path / "a_runs"
-    run_script(
-        "linear_cv.py", "train", "--train-cache", c["train"],
-        "--prelim-cache", c["test_preliminary"], "--runs", a_runs, "--epochs", 1,
-    )  # fmt: skip
+    write_step4a_runs(a_runs, c["train"], c["test_preliminary"])
     run_script(
         "prelim_breakdown.py", "score", "--runs", a_runs,
         "--all-cache", c["test_preliminary_all"], "--prelim-cache", c["test_preliminary"],
