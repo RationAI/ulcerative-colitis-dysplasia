@@ -56,7 +56,7 @@ from ml.data.huncrc_labels import (
 )
 from ml.huncrc_eval import evaluate, weighted_auroc_ap
 from ml.huncrc_head import HunCRCHead
-from ml.huncrc_train import (
+from ml.huncrc_heads import (
     Scaler,
     TrainConfig,
     make_head,

@@ -1,11 +1,11 @@
-"""Synthetic tests for ml.huncrc_train."""
+"""Synthetic tests for ml.huncrc_heads."""
 
 import numpy as np
 import pytest
 import torch
 
 from ml.huncrc_head import fit_head
-from ml.huncrc_train import Scaler, binary_metrics, make_head, predict
+from ml.huncrc_heads import Scaler, binary_metrics, make_head, predict
 
 
 def _data(n: int = 2000, d: int = 16, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
@@ -57,7 +57,7 @@ def test_binary_metrics_constant_scores() -> None:
 
 
 def test_balanced_weights_equalise_classes() -> None:
-    from ml.huncrc_train import balanced_weights
+    from ml.huncrc_heads import balanced_weights
 
     y = np.array([1] * 70 + [0] * 30)
     wn, wp = balanced_weights(y)

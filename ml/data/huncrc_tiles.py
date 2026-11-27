@@ -18,7 +18,7 @@ from torch.utils.data import BatchSampler, DataLoader, Dataset, Sampler
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from ml.huncrc_train import Scaler
+    from ml.huncrc_heads import Scaler
 
 TileBatch = tuple[Tensor, Tensor, Tensor | None]
 

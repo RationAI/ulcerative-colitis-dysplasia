@@ -22,7 +22,7 @@ import numpy as np
 from ml.data.huncrc_features import load_features
 from ml.data.huncrc_labels import LabelConfig
 from ml.huncrc_head import fit_head
-from ml.huncrc_train import Scaler, binary_metrics, predict
+from ml.huncrc_heads import Scaler, binary_metrics, predict
 
 
 VAL_FOLD = 0

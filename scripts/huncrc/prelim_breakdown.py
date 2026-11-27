@@ -39,7 +39,7 @@ from scipy.spatial import cKDTree
 from ml.data.huncrc_features import load_features
 from ml.data.huncrc_labels import LabelConfig, load_slide_table, safe_slide_names
 from ml.huncrc_eval import slide_bootstrap, weighted_auroc_ap
-from ml.huncrc_train import Scaler, make_head, predict
+from ml.huncrc_heads import Scaler, make_head, predict
 
 
 VARIANTS = ("a", "b")

@@ -176,7 +176,7 @@ def write_step4a_runs(runs: Path, train_cache: Path, prelim_cache: Path) -> Path
 
     from ml.data.huncrc_features import load_features
     from ml.huncrc_eval import weighted_auroc_ap, youden_threshold
-    from ml.huncrc_train import (
+    from ml.huncrc_heads import (
         Scaler,
         TrainConfig,
         balanced_weights,

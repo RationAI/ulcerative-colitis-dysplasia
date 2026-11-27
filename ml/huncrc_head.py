@@ -26,14 +26,14 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 
 from ml.data.huncrc_tiles import train_loader
 from ml.huncrc_eval import weighted_auroc_ap
-from ml.huncrc_train import make_head
+from ml.huncrc_heads import make_head
 
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ml.data.huncrc_tiles import TileBatch
-    from ml.huncrc_train import Scaler
+    from ml.huncrc_heads import Scaler
 
 
 class HunCRCHead(LightningModule):

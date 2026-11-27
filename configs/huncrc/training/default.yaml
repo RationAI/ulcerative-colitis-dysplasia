@@ -1,4 +1,4 @@
-# Fixed in ml/huncrc_train.TrainConfig; the entry point refuses other values
+# Fixed in ml/huncrc_heads.TrainConfig; the entry point refuses other values
 # until within_slide_cv.py takes them as arguments.
 epochs: 10
 class_weighting: none  # none | balanced

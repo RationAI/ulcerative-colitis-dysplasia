@@ -20,7 +20,7 @@ from torch.utils.data import BatchSampler, DataLoader
 
 from ml.data.huncrc_folds import fold_rows
 from ml.data.huncrc_tiles import TileRows, as_batch, train_loader
-from ml.huncrc_train import Scaler, balanced_weights
+from ml.huncrc_heads import Scaler, balanced_weights
 from ml.run_files import save
 
 
