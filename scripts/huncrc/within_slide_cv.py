@@ -12,7 +12,7 @@ excluded slides never train. Negatives are capped per slide in TRAINING only
     # report (works on partial results), next to the saved Step-4a models (A);
     # --other-runs adds variants trained elsewhere (e.g. Step-8 B/C next to D/E)
     python scripts/huncrc/within_slide_cv.py report --train-cache C --prelim-all-cache P \
-        --runs R [--other-runs R2 ...] [--a-runs <step4a linear_cv dir>] \
+        --runs R [--other-runs R2 ...] [--a-runs <saved step4a runs dir>] \
         --annotations A --tiling T --slide-csv CSV
 
 Variants (all on the new labels): B = linear, unweighted BCE; C = linear,
@@ -479,7 +479,7 @@ def main(argv: list[str] | None = None, on_epoch: EpochHook | None = None) -> No
     p.add_argument(
         "--a-runs",
         type=Path,
-        help="report: Step-4a linear_cv runs dir (variants a, b); omit to skip A",
+        help="report: saved Step-4a runs dir (variants a, b); omit to skip A",
     )
     p.add_argument(
         "--other-runs",

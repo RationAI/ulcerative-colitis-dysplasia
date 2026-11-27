@@ -1,7 +1,7 @@
 """Step 5: harder evaluation of the saved linear-head fold models on test_preliminary.
 
-No retraining. Reuses ``linear_cv.py`` runs (best epoch, scaler, Youden
-threshold of each (variant, fold)). test_final is never read.
+No retraining. Reuses the saved Step-4a runs (best epoch, scaler, Youden
+threshold of each (variant, fold); written by linear_cv.py, since removed). test_final is never read.
 
     # 1) score EVERY test_preliminary tile with each fold model (resumable)
     python scripts/huncrc/prelim_breakdown.py score  --runs R --all-cache A --prelim-cache P
