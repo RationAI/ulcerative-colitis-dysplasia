@@ -111,6 +111,8 @@ def _diff_fold(ref: Path, new: Path) -> list[str]:
     bad = []
     done = json.loads((ref / "done.json").read_text())
     for p in sorted(ref.iterdir()):
+        if p.is_dir():  # Lightning's checkpoints/ of a branch run
+            continue
         q = new / p.name
         if p.name.startswith("epoch_") and p.suffix == ".pt" and not q.exists():
             # only the best epoch's weights are needed downstream

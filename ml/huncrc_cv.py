@@ -259,7 +259,9 @@ def epoch_hook(
     logger: OptionalMLFlowLogger,
 ) -> Callable[[str, int, dict[str, Any]], None]:
     def on_epoch(variant: str, k: int, rec: dict[str, Any]) -> None:
-        for key in ("train_loss", "val_auroc", "val_auprc", "seconds"):
+        keys = ["train_loss", "val_auroc", "val_auprc", "seconds"]
+        keys += sorted(key for key in rec if key.startswith("monitor_"))  # torchmetrics
+        for key in keys:
             logger.log_series(f"fold{k}_epoch_{key}", [(int(rec["epoch"]), rec[key])])
 
     return on_epoch
