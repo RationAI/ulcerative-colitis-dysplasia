@@ -1,6 +1,6 @@
 # @package _global_
 
-output_dir: ${project_path}/epithelium_masks/downscale
+output_dir: ${dataset.project_path}/epithelium_masks/downscale
 downscale: 9  # from 0.5 mpp to 4.5 mpp
 max_concurrent: 4
 mlflow_artifact_path: "epithelium"

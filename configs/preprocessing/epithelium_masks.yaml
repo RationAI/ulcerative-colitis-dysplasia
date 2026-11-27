@@ -1,7 +1,8 @@
 # @package _global_
 
-max_concurrent: 1
-output_dir: ${project_path}/epithelium_masks/raw
+#: svc / model / max_concurrent / request_timeout are cohort specific --
+#: configs/experiment/preprocessing/epithelium/<cohort>.yaml.
+output_dir: ${dataset.project_path}/epithelium_masks/raw
 mlflow_artifact_path: "epithelium_masks"
 only_missing: true
 

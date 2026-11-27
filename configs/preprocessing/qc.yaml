@@ -1,6 +1,6 @@
 # @package _global_
 
-output_dir: ${project_path}/quality_control
+output_dir: ${dataset.project_path}/quality_control
 request_timeout: 18000
 max_concurrent: 5
 

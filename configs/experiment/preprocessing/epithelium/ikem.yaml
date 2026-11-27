@@ -1,0 +1,8 @@
+# @package _global_
+
+#: IBD's model RayService (the SDK default, made explicit so the pre-flight check
+#: has a URL to probe).
+svc: "http://rayservice-model-serve-svc.rationai-jobs-ns.svc.cluster.local:8000"
+model: "episeg-1"
+max_concurrent: 1
+request_timeout: 3000
