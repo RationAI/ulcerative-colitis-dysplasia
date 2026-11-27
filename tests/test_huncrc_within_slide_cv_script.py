@@ -1,6 +1,7 @@
 """Smoke test: scripts/huncrc/within_slide_cv.py train (+ resume) and report."""
 
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -38,16 +39,14 @@ def test_within_slide_cv_end_to_end(tmp_path: Path) -> None:
     assert cnt["train_before_cap"]["neg_positive_slide_normal"] == 8 * 28
     assert cnt["val"]["neg_positive_slide_normal"] == 2 * 28  # validation is not capped
 
-    # interrupt C/fold2 after epoch 1, resume -> identical scores
+    # interrupt C/fold2 after epoch 1, resume -> identical scores. Training
+    # resumes from Lightning's last.ckpt, so the interruption is a run that
+    # stopped after epoch 1 and never finished the fold (no done.json)
     d = runs / "C" / "fold2"
     before = np.load(d / "prelim_all_scores.npy")
-    for f in (
-        "done.json",
-        "epoch_01.pt",
-        "epoch_01.json",
-        "epoch_01_val.npy",
-        "prelim_all_scores.npy",
-    ):
+    shutil.rmtree(d)
+    run_script("within_slide_cv.py", "train", *common, "--epochs", 1, "--neg-cap", 20)
+    for f in ("done.json", "prelim_all_scores.npy"):
         (d / f).unlink()
     proc = run_script(
         "within_slide_cv.py", "train", *common, "--epochs", 2, "--neg-cap", 20

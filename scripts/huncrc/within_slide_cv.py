@@ -26,6 +26,7 @@ seed = fold index. test_final is never read; no MLflow.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
@@ -38,7 +39,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from lightning import Callback
+from lightning.pytorch.callbacks import ModelCheckpoint
+from rationai.mlkit import Trainer
+from torch.utils.data import BatchSampler, DataLoader
 
+from ml.atomic_checkpoint_io import AtomicCheckpointIO
 from ml.data.huncrc_features import FeatureSet, load_features
 from ml.data.huncrc_labels import (
     LabelConfig,
@@ -47,12 +53,13 @@ from ml.data.huncrc_labels import (
     rules_fingerprint,
     safe_slide_names,
 )
+from ml.data.huncrc_tiles import EpochPermutation, TileRows, as_batch
 from ml.huncrc_eval import evaluate, weighted_auroc_ap, youden_threshold
+from ml.huncrc_head import HunCRCHead
 from ml.huncrc_train import (
     Scaler,
     TrainConfig,
     balanced_weights,
-    fit_epochs,
     make_head,
     predict,
 )
@@ -205,6 +212,50 @@ def train_rules(a) -> LabelConfig:
     return rules
 
 
+class EpochFiles(Callback):
+    """The reference loop's per-epoch outputs.
+
+    Validation scores and metrics, then the weights, written last, so a
+    complete epoch_NN.pt means a complete epoch.
+    """
+
+    def __init__(self, x, y, val, sc, d: Path, name: str, epochs: int,
+                 on_epoch: EpochHook | None) -> None:  # fmt: skip
+        self.x, self.y, self.val, self.sc, self.d = x, y, val, sc, d
+        self.name, self.epochs, self.on_epoch = name, epochs, on_epoch
+        self.t0 = time.time()
+
+    def on_train_epoch_end(self, trainer: Trainer, module: HunCRCHead) -> None:
+        ep, d = trainer.current_epoch, self.d
+        s = predict(module.head, self.x, self.val, self.sc)
+        module.head.train()  # predict() leaves the head in eval mode
+        auroc, auprc = weighted_auroc_ap(self.y[self.val], s)
+        save(s, d / f"epoch_{ep:02d}_val.npy", "npy")
+        save(
+            {
+                "epoch": ep + 1,
+                "train_loss": module.train_loss,
+                "val_auroc": auroc,
+                "val_auprc": auprc,
+                "seconds": time.time() - self.t0,
+            },
+            d / f"epoch_{ep:02d}.json",
+        )
+        #: deep copy: state_dict() returns live references that later epochs mutate
+        state = copy.deepcopy({"epoch": ep, "model": module.head.state_dict(),
+                               "optimizer": trainer.optimizers[0].state_dict()})  # fmt: skip
+        save(state, d / f"epoch_{ep:02d}.pt", "pt")  # written last = epoch complete
+        # e.g. live MLflow from ml/huncrc_cv.py; the hook must not raise
+        if self.on_epoch is not None:
+            variant, k = self.name.split("/fold")
+            self.on_epoch(
+                variant, int(k), json.loads((d / f"epoch_{ep:02d}.json").read_text())
+            )
+        log(
+            f"{self.name} epoch {ep + 1}/{self.epochs}: loss {module.train_loss:.4f} val AUROC {auroc:.4f} AUPRC {auprc:.4f} ({time.time() - self.t0:.0f}s)"
+        )
+
+
 def train_one(
     fs, pre, variant, k, d: Path, a, on_epoch: EpochHook | None = None
 ) -> None:
@@ -245,36 +296,47 @@ def train_one(
     head, weighting = VARIANTS[variant]
     cw = balanced_weights(y[tr]) if weighting == "balanced" else None
     cfg = TrainConfig(epochs=a.epochs, seed=k)
-    done = sorted(int(p.stem.split("_")[1]) for p in d.glob("epoch_??.pt"))
-    resume = (
-        torch.load(d / f"epoch_{done[-1]:02d}.pt", weights_only=False) if done else None
-    )
+    ckpt = d / "checkpoints" / "last.ckpt"  # Lightning's, after every epoch
+    # its "epoch" is the number of completed epochs
+    resume = torch.load(ckpt, weights_only=False)["epoch"] if ckpt.is_file() else None
     log(
-        f"{variant}/fold{k}: start ({'resume after epoch ' + str(resume['epoch'] + 1) if resume else 'new'}); "
+        f"{variant}/fold{k}: start ({'resume after epoch ' + str(resume) if resume is not None else 'new'}); "
         f"head {head}, train {cnt['train']}, val {cnt['val']}, class weights {cw}"
     )
+    # the reference loop read 65536-row blocks and cut them into batches; with a
+    # whole number of batches per block that is plain consecutive batching
+    assert cfg.super_batch % cfg.batch_size == 0
+    torch.manual_seed(cfg.seed)  # head initialisation, as in the reference
+    module = HunCRCHead(
+        head, x.shape[1], cfg.dropout, cfg.lr, cfg.weight_decay, cfg.seed
+    )
+    loader = DataLoader(
+        TileRows(x, y, sc, cw),
+        batch_sampler=BatchSampler(
+            EpochPermutation(tr, cfg.seed), cfg.batch_size, drop_last=False
+        ),
+        collate_fn=as_batch,
+        generator=torch.Generator(),  # keeps the global RNG (dropout) untouched
+    )
+    trainer = Trainer(
+        max_epochs=cfg.epochs,
+        accelerator="cpu",
+        devices=1,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        num_sanity_val_steps=0,
+        limit_val_batches=0,
+        callbacks=[
+            EpochFiles(x, y, val, sc, d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
+            ModelCheckpoint(dirpath=d / "checkpoints", save_top_k=0, save_last=True),
+        ],
+        plugins=[AtomicCheckpointIO()],
+    )
     t0 = time.time()
-    for ep, model, state, loss in fit_epochs(head, x, y, tr, sc, cfg, cw, resume):
-        s = predict(model, x, val, sc)
-        auroc, auprc = weighted_auroc_ap(y[val], s)
-        save(s, d / f"epoch_{ep:02d}_val.npy", "npy")
-        save(
-            {
-                "epoch": ep + 1,
-                "train_loss": loss,
-                "val_auroc": auroc,
-                "val_auprc": auprc,
-                "seconds": time.time() - t0,
-            },
-            d / f"epoch_{ep:02d}.json",
-        )
-        save(state, d / f"epoch_{ep:02d}.pt", "pt")  # written last = epoch complete
-        # e.g. live MLflow from ml/huncrc_cv.py; the hook must not raise
-        if on_epoch is not None:
-            on_epoch(variant, k, json.loads((d / f"epoch_{ep:02d}.json").read_text()))
-        log(
-            f"{variant}/fold{k} epoch {ep + 1}/{a.epochs}: loss {loss:.4f} val AUROC {auroc:.4f} AUPRC {auprc:.4f} ({time.time() - t0:.0f}s)"
-        )
+    trainer.fit(
+        module, train_dataloaders=loader, ckpt_path=ckpt if resume is not None else None
+    )
     hist = [
         json.loads((d / f"epoch_{e:02d}.json").read_text()) for e in range(a.epochs)
     ]
