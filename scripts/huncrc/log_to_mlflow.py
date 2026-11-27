@@ -116,17 +116,32 @@ SETS = {
     "E": SetSpec("E", "mlp", "balanced", NEW_RULES, "9", "MLP, within-slide negatives, class-balanced"),
 }  # fmt: skip
 
-HEAD_ARCH = {
-    "linear": "Dropout(0.5) -> Linear(1536, 1)  [EmbeddingClassifier]",
-    "mlp": "Dropout(0.5) -> 1536-512-256 ReLU -> Linear(256, 1)  [MlpEmbeddingClassifier]",
+
+def head_arch(head: str, dim: int) -> str:
+    return {
+        "linear": f"Dropout(0.5) -> Linear({dim}, 1)  [EmbeddingClassifier]",
+        "mlp": f"Dropout(0.5) -> {dim}-512-256 ReLU -> Linear(256, 1)  "
+        "[MlpEmbeddingClassifier]",
+    }[head]
+
+
+#: where a run's embedding model and dimension come from (param embedding_source)
+EMB_RUN_CONFIG = "run-config"
+EMB_CACHE_META = "train-cache-meta"
+EMB_LEGACY_4A = "legacy-step4a"
+EMBEDDING_BASIS = {
+    EMB_RUN_CONFIG: "embedding_model / embedding_dim recorded by within_slide_cv.py "
+    "in runs/run_config.json",
+    EMB_CACHE_META: "meta.json of the train cache named in runs/run_config.json "
+    "(the run predates the run_config record)",
+    EMB_LEGACY_4A: "not recorded: Step 4a (2026-11-19) wrote no run_config; "
+    "prov-gigapath 1536-d was the only embedding on the share then",
 }
 VAL_KEYS = ["auroc", "auprc", "sensitivity", "specificity", "f1"]
 EPOCH_KEYS = ["train_loss", "val_auroc", "val_auprc", "seconds"]
 ALLOWED_ARTIFACTS = {".txt", ".json", ".csv"}
 
 STATIC_PARAMS = {
-    "embedding_model": "prov-gigapath",
-    "embedding_dim": "1536",
     "embedding_mpp": "0.49",
     "tiling": "224 px tiles, level 2 (downsample 4), stride 112",
     "tile_label": "coverage = max(LG, HG) over the central half (112 px) of the tile",
@@ -230,6 +245,46 @@ GIT_DIRTY_BASIS = {
 }
 
 
+def run_embedding(
+    name: str, set_dir: Path, source_map: dict[str, str] | None = None
+) -> tuple[str, int, str]:
+    """(model, dim, source) of a model set's embedding, from the run itself.
+
+    run_config.json record, else the meta.json of the train cache it names,
+    else (Step 4a only) the labelled legacy value. The dimension is
+    cross-checked against every saved per-fold scaler.
+    """
+    rc_path = set_dir.parent / "run_config.json"
+    rc = _read_json(rc_path) if rc_path.is_file() else {}
+    if rc.get("embedding_model") and rc.get("embedding_dim"):
+        model, dim, src = (
+            str(rc["embedding_model"]),
+            int(rc["embedding_dim"]),
+            EMB_RUN_CONFIG,
+        )
+    elif rc.get("train_cache"):
+        meta = Path(map_source(str(rc["train_cache"]), source_map or {})) / "meta.json"
+        if not meta.is_file():
+            raise RefuseError(
+                f"{name}: {rc_path} records no embedding and its train cache "
+                f"{meta.parent} is gone; pass --source-map OLD=NEW if it moved"
+            )
+        model, dim = huncrc_features.cache_embedding(_read_json(meta))
+        src = EMB_CACHE_META
+    elif SETS[name].step == "4a":
+        model, dim, src = (huncrc_features.DEFAULT_MODEL,
+                           huncrc_features.DEFAULT_DIM, EMB_LEGACY_4A)  # fmt: skip
+    else:
+        raise RefuseError(f"{name}: no embedding recorded ({rc_path} missing or empty)")
+    for sc in sorted(set_dir.glob("fold*/scaler.npz")):
+        n = len(np.load(sc)["mean"])
+        if n != dim:
+            raise RefuseError(
+                f"{name}: {sc} has {n} features, the run says {model} {dim}-d"
+            )
+    return model, dim, src
+
+
 def code_provenance(set_dir: Path) -> dict[str, str]:
     """Git commit, how it was recorded, tree state and origin, from the run log.
 
@@ -319,6 +374,7 @@ def build_plan(
     table_text: str | None,
     git_override: str | None = None,
     reported_dir: str | None = None,
+    source_map: dict[str, str] | None = None,
 ) -> RunPlan:
     spec = SETS[name]
     if name not in report.get("model_sets", {}):
@@ -329,6 +385,7 @@ def build_plan(
     if folds != list(range(N_FOLDS)):
         raise RefuseError(f"{name}: report has folds {folds}, need all {N_FOLDS}")
 
+    emb_model, emb_dim, emb_src = run_embedding(name, set_dir, source_map)
     prov = code_provenance(set_dir)
     recorded = prov["git_commit"]
     if git_override:
@@ -375,7 +432,11 @@ def build_plan(
     params: dict[str, str] = {
         "model_set": name,
         "head": spec.head,
-        "head_arch": HEAD_ARCH[spec.head],
+        "head_arch": head_arch(spec.head, emb_dim),
+        "embedding_model": emb_model,
+        "embedding_dim": str(emb_dim),
+        "embedding_source": emb_src,
+        "embedding_source_basis": EMBEDDING_BASIS[emb_src],
         "class_weighting": spec.weighting,
         "label_rules_fingerprint": huncrc_labels.rules_fingerprint(rules),
         "label_rules_version": str(huncrc_labels.LABEL_RULES_VERSION),
@@ -431,7 +492,7 @@ def build_plan(
         "huncrc.log_key": log_key,
         "mlflow.note.content": (
             f"HunCRC Step {spec.step}, model set {name}: {spec.title}. 5-fold CV on "
-            "frozen prov-gigapath embeddings; logged retrospectively from saved runs "
+            f"frozen {emb_model} embeddings; logged retrospectively from saved runs "
             "(no retraining). Metric X = mean over folds, X_fold = per fold "
             "(step = fold), X_sd = sd over folds."
         ),
@@ -543,6 +604,7 @@ def build_plans(
                 table_text,
                 git_overrides.get(n),
                 reported,
+                source_map,
             )
         )
     return plans

@@ -101,10 +101,19 @@ def cohort(tmp_path: Path) -> dict[str, Any]:
     share = tmp_path / "share"
     s8 = share / "step8"
     make_set(s8 / "runs", "B", head=None)  # Step-8 runs predate the "head" field
-    _w(s8 / "runs" / "run_config.json", {"smoke_tiles_per_slide": "None"})
+    # Step-8 runs record no embedding, only the train cache (at its home path);
+    # that cache's meta.json predates "embedding_model" and names its source
+    key = "mc0-train-r729e9556-v2-7a57c2cd"
+    _w(s8 / "runs" / "run_config.json", {"smoke_tiles_per_slide": "None",
+                                         "train_cache": f"{HOME}/cache/{key}"})  # fmt: skip
+    _w(share / "cache" / key / "meta.json",
+       {"key": key, "dim": 1536, "source": "/x/preprocessing/embeddings/prov-gigapath"})  # fmt: skip
     (s8 / "run.log").write_text("[x] run_cv.sh train: threads=1 git=0695467\n")
     s9 = share / "step9_mlp"
     make_set(s9 / "runs", "E", head="mlp")
+    _w(s9 / "runs" / "run_config.json", {"smoke_tiles_per_slide": "None",
+                                         "embedding_model": "prov-gigapath",
+                                         "embedding_dim": 1536})  # fmt: skip
     (s9 / "run.log").write_text(f"[job] commit {SHA} msg\n[x] git=fe0d863\n")
     s4 = share / "step4a"
     make_set(s4, "a", head=None, counts=False)
@@ -136,6 +145,8 @@ def test_params_and_metrics_from_saved_runs(cohort: dict[str, Any]) -> None:
     assert p["dropout"] == "0.5" and p["optimizer"] == "AdamW"
     assert p["seed"] == "fold index (0-4)" and p["class_weights_per_fold"] == "none"
     assert p["embedding_model"] == "prov-gigapath" and p["embedding_dim"] == "1536"
+    assert p["embedding_source"] == "train-cache-meta"  # via the source map
+    assert p["head_arch"].startswith("Dropout(0.5) -> Linear(1536, 1)")
     # recorded at run start, but a notebook run never proves a clean tree
     assert p["git_commit"] == "0695467" and p["git_dirty"] == "unknown"
     assert p["git_commit_source"] == "run-log-head" == b.tags["git_commit_source"]
@@ -406,3 +417,42 @@ def test_dirty_flag_from_run_log(tmp_path: Path) -> None:
     (tmp_path / "run.log").write_text("[x] run_cv.sh train: git=0695467+dirty\n")
     prov = L.code_provenance(tmp_path / "runs" / "B")
     assert prov["git_dirty"] == "true" and prov["git_commit_source"] == "run-log-head"
+
+
+# ------------------------------------------------------------------ embedding
+
+
+def test_embedding_comes_from_the_run(cohort: dict[str, Any]) -> None:
+    a, b, e = plans(cohort, ["A-unw", "B", "E"])
+    assert (a.params["embedding_source"], b.params["embedding_source"],
+            e.params["embedding_source"]) == (
+        "legacy-step4a", "train-cache-meta", "run-config")  # fmt: skip
+    assert "only embedding on the share" in a.params["embedding_source_basis"]
+    rc = cohort["share"] / "step9_mlp" / "runs" / "run_config.json"
+    rc.write_text(json.dumps({"smoke_tiles_per_slide": "None",
+                              "embedding_model": "virchow2", "embedding_dim": 2560}))  # fmt: skip
+    (e,) = plans(cohort, ["E"])
+    assert e.params["embedding_model"] == "virchow2"
+    assert e.params["embedding_dim"] == "2560"
+    assert e.params["head_arch"].startswith("Dropout(0.5) -> 2560-512-256 ReLU")
+    assert "frozen virchow2 embeddings" in e.tags["mlflow.note.content"]
+    assert not any("prov-gigapath" in v or "1536" in v for v in e.params.values())
+
+
+def test_embedding_refusals(cohort: dict[str, Any]) -> None:
+    # dim cross-checked against the saved scalers
+    fd = cohort["share"] / "step9_mlp" / "runs" / "E" / "fold0"
+    np.savez(fd / "scaler.npz", mean=np.zeros(2560), std=np.ones(2560))
+    with pytest.raises(L.RefuseError, match="2560 features"):
+        plans(cohort, ["E"])
+    (fd / "scaler.npz").unlink()
+    # an unrecorded embedding whose train cache is gone
+    for m in (cohort["share"] / "cache").rglob("meta.json"):
+        m.unlink()
+    with pytest.raises(L.RefuseError, match="records no embedding"):
+        plans(cohort, ["B"])
+    # outside Step 4a an empty record is never guessed
+    rc = cohort["share"] / "step9_mlp" / "runs" / "run_config.json"
+    rc.write_text(json.dumps({"smoke_tiles_per_slide": "None"}))
+    with pytest.raises(L.RefuseError, match="no embedding recorded"):
+        plans(cohort, ["E"])
