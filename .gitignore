@@ -183,3 +183,32 @@ lightning_logs/
 
 # Project
 /data
+mlflow.txt
+.gitignore
+
+# Caches
+.venv/
+__pycache__/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Lock file (not committed)
+uv.lock
+
+# Work logs in repo root
+/*.txt
+
+# Logs and result files
+*.log
+results/
+outputs/
+logs/
+*.parquet
+*.npy
+*.pt
+*.pth
+*.ckpt
+AGENTS.md
+CLAUDE.md
