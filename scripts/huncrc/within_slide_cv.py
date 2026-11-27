@@ -40,11 +40,10 @@ import numpy as np
 import pandas as pd
 import torch
 from lightning import Callback
-from lightning.pytorch.callbacks import ModelCheckpoint
 from rationai.mlkit import Trainer
 
 from ml.atomic_checkpoint_io import AtomicCheckpointIO
-from ml.callbacks import YoudenThreshold
+from ml.callbacks import YoudenThreshold, run_checkpoints
 from ml.data.huncrc_data_module import HunCRCFoldData
 from ml.data.huncrc_features import FeatureSet, load_features
 from ml.data.huncrc_folds import neg_source
@@ -154,8 +153,8 @@ class EpochFiles(Callback):
 
     def on_train_epoch_end(self, trainer: Trainer, module: HunCRCHead) -> None:
         ep, d = trainer.current_epoch, self.d
-        s = module.val_scores  # Lightning's validation loop ran just before
-        auroc, auprc = weighted_auroc_ap(trainer.datamodule.val_labels, s)
+        # Lightning's validation loop ran just before (float64 metrics)
+        s, auroc, auprc = module.val_scores, module.val_auroc, module.val_auprc
         save(s, d / f"epoch_{ep:02d}_val.npy", "npy")
         save(
             {
@@ -213,7 +212,8 @@ def train_one(
     module = HunCRCHead(
         head, x.shape[1], cfg.dropout, cfg.lr, cfg.weight_decay, cfg.seed
     )
-    youden = YoudenThreshold(d)
+    checkpoints = run_checkpoints(d)  # [best, last]
+    youden = YoudenThreshold(d, best=checkpoints[0])
     trainer = Trainer(
         max_epochs=cfg.epochs,
         accelerator="cpu",
@@ -225,20 +225,7 @@ def train_one(
         callbacks=[
             EpochFiles(d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
             youden,
-            # the resume point, overwritten after every epoch. Not save_last: in
-            # Lightning 2.6 it refreshes last.ckpt only when a top-k checkpoint is
-            # saved, so with save_top_k=0 it was written once, when training ended.
-            # Saved after the run files (checkpoint callbacks run last), as the
-            # reference wrote the weights last; by default it would save at
-            # validation end, before them.
-            ModelCheckpoint(
-                dirpath=d / "checkpoints",
-                filename="last",
-                save_top_k=1,
-                every_n_epochs=1,
-                save_on_train_epoch_end=True,
-                enable_version_counter=False,
-            ),
+            *checkpoints,
         ],
         plugins=[AtomicCheckpointIO()],
     )

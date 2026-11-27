@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 from lightning import LightningModule
 from torch import Tensor, nn
@@ -22,6 +23,7 @@ from torch.optim import AdamW
 from torchmetrics import MetricCollection
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 
+from ml.huncrc_eval import weighted_auroc_ap
 from ml.huncrc_train import make_head
 
 
@@ -86,6 +88,14 @@ class HunCRCHead(LightningModule):
     def on_validation_epoch_end(self) -> None:
         #: sigmoid scores of the validation rows, in the order of the loader
         self.val_scores = torch.cat(self._val_scores).numpy()
+        self.val_auroc, self.val_auprc = self.validation_metrics(self.val_scores)
+        # float64, so ModelCheckpoint tells apart values equal in float32
+        self.log("validation/auroc", torch.tensor(self.val_auroc, dtype=torch.float64))
+        self.log("validation/auprc", torch.tensor(self.val_auprc, dtype=torch.float64))
+
+    def validation_metrics(self, scores: np.ndarray) -> tuple[float, float]:
+        """Validation AUROC and AUPRC in float64 (ml.huncrc_eval)."""
+        return weighted_auroc_ap(self.trainer.datamodule.val_labels, scores)
 
     @property
     def train_loss(self) -> float:

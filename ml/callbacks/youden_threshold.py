@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 from lightning import Callback
 
 from ml.huncrc_eval import youden_threshold
@@ -14,30 +14,30 @@ from ml.huncrc_eval import youden_threshold
 
 if TYPE_CHECKING:
     from lightning import LightningModule, Trainer
+    from lightning.pytorch.callbacks import ModelCheckpoint
 
 
 class YoudenThreshold(Callback):
-    """After training: the best epoch (max validation AUPRC) and its threshold.
+    """After training: the best epoch and its threshold.
 
-    Reads the per-epoch run files (``epoch_NN.json``, ``epoch_NN_val.npy``) of
-    ``run_dir``, so a resumed run sees the epochs of the earlier attempt too.
-    The threshold maximises sensitivity + specificity - 1 on the validation
-    fold; ``best_epoch`` is 0-based.
+    The best epoch is the one ``best`` (a monitoring ModelCheckpoint, see
+    :func:`ml.callbacks.run_checkpoints.run_checkpoints`) kept; its state is
+    restored on resume, so earlier attempts count too. The threshold maximises
+    sensitivity + specificity - 1 on that epoch's validation scores
+    (``epoch_NN_val.npy`` in ``run_dir``). ``best_epoch`` is 0-based.
     """
 
-    def __init__(self, run_dir: Path | str) -> None:
+    def __init__(self, run_dir: Path | str, best: ModelCheckpoint) -> None:
         self.run_dir = Path(run_dir)
+        self.best = best
         self.best_epoch: int | None = None
         self.threshold: float | None = None
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        d = self.run_dir
-        hist = [
-            json.loads((d / f"epoch_{e:02d}.json").read_text())
-            for e in range(trainer.max_epochs)
-        ]
-        self.best_epoch = int(np.argmax([h["val_auprc"] for h in hist]))
+        # saved at the end of its epoch, so "epoch" is that epoch's 0-based index
+        ckpt = torch.load(self.best.best_model_path, weights_only=False)
+        self.best_epoch = int(ckpt["epoch"])
         self.threshold = youden_threshold(
             trainer.datamodule.val_labels,
-            np.load(d / f"epoch_{self.best_epoch:02d}_val.npy"),
+            np.load(self.run_dir / f"epoch_{self.best_epoch:02d}_val.npy"),
         )
