@@ -21,7 +21,8 @@ import numpy as np
 
 from ml.data.huncrc_features import load_features
 from ml.data.huncrc_labels import LabelConfig
-from ml.huncrc_train import Scaler, TrainConfig, binary_metrics, predict, train_head
+from ml.huncrc_head import fit_head
+from ml.huncrc_train import Scaler, binary_metrics, predict
 
 
 VAL_FOLD = 0
@@ -111,25 +112,19 @@ def main() -> None:
                 curve.append((ep + 1, au))
                 log(f"overfit {kind} epoch {ep + 1}: train AUROC {au:.5f}")
 
-        model, h = train_head(
-            kind,
-            x,
-            y,
-            of_rows,
-            sc,
-            TrainConfig(epochs=a.overfit_epochs, seed=a.seed),
-            track,
+        model, losses, secs = fit_head(
+            kind, x, y, of_rows, sc, a.overfit_epochs, a.seed, on_epoch=track
         )
         m = binary_metrics(y[of_rows], predict(model, x, of_rows, sc))
         res["overfit"][kind] = {
             "train": m,
             "auroc_curve": curve,
-            "loss": h.epoch_loss[-1],
+            "loss": losses[-1],
             "epochs": a.overfit_epochs,
-            "seconds": h.seconds,
+            "seconds": secs,
         }
         log(
-            f"overfit {kind}: train AUROC {m['auroc']:.5f} acc {m['accuracy']:.4f} ({h.seconds:.0f}s)"
+            f"overfit {kind}: train AUROC {m['auroc']:.5f} acc {m['accuracy']:.4f} ({secs:.0f}s)"
         )
 
     # 4. shuffled labels within training folds, evaluate on REAL val labels
@@ -142,9 +137,7 @@ def main() -> None:
         ("linear", a.shuffled_epochs_linear),
         ("mlp", a.shuffled_epochs_mlp),
     ):
-        model, h = train_head(
-            kind, x, y_shuf, tr, sc, TrainConfig(epochs=ep, seed=a.seed)
-        )
+        model, losses, secs = fit_head(kind, x, y_shuf, tr, sc, ep, a.seed)
         mv = binary_metrics(y[val], predict(model, x, val, sc))
         s_tr = predict(model, x, tr, sc)
         mt_shuf = binary_metrics(y_shuf[tr], s_tr)
@@ -154,12 +147,12 @@ def main() -> None:
             "train_vs_shuffled": mt_shuf,
             "train_vs_real": mt_real,
             "epochs": ep,
-            "loss": h.epoch_loss,
-            "seconds": h.seconds,
+            "loss": losses,
+            "seconds": secs,
         }
         log(
             f"shuffled {kind}: val AUROC {mv['auroc']:.4f}, train AUROC (shuffled) "
-            f"{mt_shuf['auroc']:.4f}, train AUROC (real) {mt_real['auroc']:.4f} ({h.seconds:.0f}s)"
+            f"{mt_shuf['auroc']:.4f}, train AUROC (real) {mt_real['auroc']:.4f} ({secs:.0f}s)"
         )
 
     a.out.parent.mkdir(parents=True, exist_ok=True)
