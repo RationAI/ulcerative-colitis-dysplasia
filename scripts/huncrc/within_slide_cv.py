@@ -42,10 +42,11 @@ import torch
 from lightning import Callback
 from lightning.pytorch.callbacks import ModelCheckpoint
 from rationai.mlkit import Trainer
-from torch.utils.data import BatchSampler, DataLoader
 
 from ml.atomic_checkpoint_io import AtomicCheckpointIO
+from ml.data.huncrc_data_module import HunCRCFoldData
 from ml.data.huncrc_features import FeatureSet, load_features
+from ml.data.huncrc_folds import neg_source
 from ml.data.huncrc_labels import (
     LabelConfig,
     load_slide_table,
@@ -53,17 +54,16 @@ from ml.data.huncrc_labels import (
     rules_fingerprint,
     safe_slide_names,
 )
-from ml.data.huncrc_tiles import EpochPermutation, TileRows, as_batch
 from ml.huncrc_eval import evaluate, weighted_auroc_ap, youden_threshold
 from ml.huncrc_head import HunCRCHead
 from ml.huncrc_train import (
     Scaler,
     TrainConfig,
-    balanced_weights,
     make_head,
     predict,
 )
 from ml.huncrc_wsmetrics import prelim_masks, prelim_report
+from ml.run_files import save
 
 
 VARIANTS = {  # name -> (head, class weighting)
@@ -101,79 +101,6 @@ def available_cpus() -> int:
 
 def log(msg: str) -> None:
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
-
-
-def save(obj: Any, path: Path, kind: str = "json") -> None:
-    """Atomic write (tmp + rename), so an interrupted run never leaves half files."""
-    tmp = path.with_name(path.name + ".tmp")
-    if kind == "npy":
-        with open(tmp, "wb") as f:
-            np.save(f, obj)
-    elif kind == "pt":
-        torch.save(obj, tmp)
-    else:
-        tmp.write_text(json.dumps(obj, indent=2, default=float))
-    os.replace(tmp, path)
-
-
-def subsample_per_slide(
-    rows: np.ndarray, names: np.ndarray, cap: int | None, rng: np.random.Generator
-) -> np.ndarray:
-    """At most ``cap`` rows per slide (random, sorted output); None = keep all."""
-    if cap is None:
-        return np.sort(rows)
-    keep = []
-    for n in np.unique(names[rows]):
-        r = rows[names[rows] == n]
-        keep.append(r if len(r) <= cap else rng.choice(r, cap, replace=False))
-    return np.sort(np.concatenate(keep)) if keep else rows[:0]
-
-
-def neg_source(fs: FeatureSet, safe: set[str]) -> np.ndarray:
-    """'safe_slide' / 'positive_slide_normal' for label-0 rows, '' otherwise."""
-    is_safe = np.isin(fs.slide_names, list(safe))
-    out = np.full(len(fs), "", dtype=object)
-    out[(fs.labels == 0) & is_safe] = "safe_slide"
-    out[(fs.labels == 0) & ~is_safe] = "positive_slide_normal"
-    return out
-
-
-def fold_rows(
-    fs: FeatureSet,
-    k: int,
-    smoke: int | None,
-    neg_cap: int | None,
-    cap_seed: int,
-    safe: set[str],
-):
-    tr = np.flatnonzero((fs.folds >= 0) & (fs.folds != k))
-    val = np.flatnonzero(fs.folds == k)
-    assert not set(fs.slide_names[tr]) & set(fs.slide_names[val]), "slide overlap"
-    rng = np.random.default_rng([cap_seed, k])
-    if smoke:
-        tr = subsample_per_slide(tr, fs.slide_names, smoke, rng)
-        val = subsample_per_slide(val, fs.slide_names, smoke, rng)
-    pos = tr[fs.labels[tr] == 1]
-    neg = subsample_per_slide(tr[fs.labels[tr] == 0], fs.slide_names, neg_cap, rng)
-    train = np.sort(np.concatenate([pos, neg]))
-    src = neg_source(fs, safe)
-
-    def counts(r: np.ndarray) -> dict[str, int]:
-        return {
-            "pos": int((fs.labels[r] == 1).sum()),
-            "neg_safe_slide": int((src[r] == "safe_slide").sum()),
-            "neg_positive_slide_normal": int((src[r] == "positive_slide_normal").sum()),
-            "slides": len(set(fs.slide_names[r])),
-            "slides_with_pos_slide_normal": len(
-                set(fs.slide_names[r][src[r] == "positive_slide_normal"])
-            ),
-        }
-
-    return (
-        train,
-        val,
-        {"train_before_cap": counts(tr), "train": counts(train), "val": counts(val)},
-    )
 
 
 EpochHook = Callable[[str, int, dict[str, Any]], None]
@@ -219,17 +146,15 @@ class EpochFiles(Callback):
     complete epoch_NN.pt means a complete epoch.
     """
 
-    def __init__(self, x, y, val, sc, d: Path, name: str, epochs: int,
+    def __init__(self, d: Path, name: str, epochs: int,
                  on_epoch: EpochHook | None) -> None:  # fmt: skip
-        self.x, self.y, self.val, self.sc, self.d = x, y, val, sc, d
-        self.name, self.epochs, self.on_epoch = name, epochs, on_epoch
+        self.d, self.name, self.epochs, self.on_epoch = d, name, epochs, on_epoch
         self.t0 = time.time()
 
     def on_train_epoch_end(self, trainer: Trainer, module: HunCRCHead) -> None:
         ep, d = trainer.current_epoch, self.d
-        s = predict(module.head, self.x, self.val, self.sc)
-        module.head.train()  # predict() leaves the head in eval mode
-        auroc, auprc = weighted_auroc_ap(self.y[self.val], s)
+        s = module.val_scores  # Lightning's validation loop ran just before
+        auroc, auprc = weighted_auroc_ap(trainer.datamodule.val_labels, s)
         save(s, d / f"epoch_{ep:02d}_val.npy", "npy")
         save(
             {
@@ -262,40 +187,15 @@ def train_one(
     if (d / "done.json").is_file():
         log(f"{variant}/fold{k}: done, skipped")
         return
-    d.mkdir(parents=True, exist_ok=True)
-    safe = safe_slide_names(a.slide_table, a.rules)
-    tr, val, cnt = fold_rows(
-        fs, k, a.smoke_tiles_per_slide, a.neg_cap, a.cap_seed, safe
-    )
-    if (d / "train_rows.npy").is_file():  # resume: rows must be what we trained on
-        assert np.array_equal(np.load(d / "train_rows.npy"), tr), (
-            "train rows changed; delete the run dir"
-        )
-        assert np.array_equal(np.load(d / "val_rows.npy"), val), (
-            "val rows changed; delete the run dir"
-        )
-    else:
-        save(tr, d / "train_rows.npy", "npy")
-        save(val, d / "val_rows.npy", "npy")
-        save(
-            {
-                **cnt,
-                "neg_cap": a.neg_cap,
-                "cap_seed": a.cap_seed,
-                "smoke_tiles_per_slide": a.smoke_tiles_per_slide,
-            },
-            d / "counts.json",
-        )
-    x, y = fs.features, fs.labels
-    if (d / "scaler.npz").is_file():
-        z = np.load(d / "scaler.npz")
-        sc = Scaler(z["mean"], z["std"])
-    else:
-        sc = Scaler.fit(x, tr)
-        np.savez(d / "scaler.npz", mean=sc.mean, std=sc.std)
     head, weighting = VARIANTS[variant]
-    cw = balanced_weights(y[tr]) if weighting == "balanced" else None
     cfg = TrainConfig(epochs=a.epochs, seed=k)
+    data = HunCRCFoldData(
+        fs, k, d, safe_slide_names(a.slide_table, a.rules), weighting, a.neg_cap,
+        a.cap_seed, a.smoke_tiles_per_slide, cfg.batch_size, cfg.super_batch, cfg.seed,
+    )  # fmt: skip
+    data.setup("fit")  # rows, scaler and class weights, for the log line below
+    x, y, val, sc, cnt, cw = (fs.features, fs.labels, data.val_rows, data.scaler,
+                              data.counts, data.class_weights)  # fmt: skip
     ckpt = d / "checkpoints" / "last.ckpt"  # Lightning's, after every epoch
     # its "epoch" is the number of completed epochs
     resume = torch.load(ckpt, weights_only=False)["epoch"] if ckpt.is_file() else None
@@ -310,14 +210,6 @@ def train_one(
     module = HunCRCHead(
         head, x.shape[1], cfg.dropout, cfg.lr, cfg.weight_decay, cfg.seed
     )
-    loader = DataLoader(
-        TileRows(x, y, sc, cw),
-        batch_sampler=BatchSampler(
-            EpochPermutation(tr, cfg.seed), cfg.batch_size, drop_last=False
-        ),
-        collate_fn=as_batch,
-        generator=torch.Generator(),  # keeps the global RNG (dropout) untouched
-    )
     trainer = Trainer(
         max_epochs=cfg.epochs,
         accelerator="cpu",
@@ -326,17 +218,21 @@ def train_one(
         enable_progress_bar=False,
         enable_model_summary=False,
         num_sanity_val_steps=0,
-        limit_val_batches=0,
         callbacks=[
-            EpochFiles(x, y, val, sc, d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
-            ModelCheckpoint(dirpath=d / "checkpoints", save_top_k=0, save_last=True),
+            EpochFiles(d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
+            # after the run files (checkpoint callbacks run last), as the reference
+            # wrote the weights last; by default it would save at validation end
+            ModelCheckpoint(
+                dirpath=d / "checkpoints",
+                save_top_k=0,
+                save_last=True,
+                save_on_train_epoch_end=True,
+            ),
         ],
         plugins=[AtomicCheckpointIO()],
     )
     t0 = time.time()
-    trainer.fit(
-        module, train_dataloaders=loader, ckpt_path=ckpt if resume is not None else None
-    )
+    trainer.fit(module, datamodule=data, ckpt_path=ckpt if resume is not None else None)
     hist = [
         json.loads((d / f"epoch_{e:02d}.json").read_text()) for e in range(a.epochs)
     ]

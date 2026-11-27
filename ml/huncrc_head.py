@@ -58,6 +58,16 @@ class HunCRCHead(LightningModule):
         self._loss_count += len(y)
         return loss
 
+    def on_validation_epoch_start(self) -> None:
+        self._val_scores: list[Tensor] = []
+
+    def validation_step(self, batch: TileBatch) -> None:
+        self._val_scores.append(torch.sigmoid(self(batch[0])))
+
+    def on_validation_epoch_end(self) -> None:
+        #: sigmoid scores of the validation rows, in the order of the loader
+        self.val_scores = torch.cat(self._val_scores).numpy()
+
     @property
     def train_loss(self) -> float:
         """Mean training loss per tile over the epoch so far."""
