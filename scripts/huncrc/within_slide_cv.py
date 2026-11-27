@@ -198,8 +198,10 @@ def train_one(
     data.setup("fit")  # rows, scaler and class weights, for the log line below
     x, sc, cnt, cw = fs.features, data.scaler, data.counts, data.class_weights
     ckpt = d / "checkpoints" / "last.ckpt"  # Lightning's, after every epoch
-    # its "epoch" is the number of completed epochs
-    resume = torch.load(ckpt, weights_only=False)["epoch"] if ckpt.is_file() else None
+    # saved at the end of an epoch, so its 0-based "epoch" + 1 epochs are complete
+    resume = (
+        torch.load(ckpt, weights_only=False)["epoch"] + 1 if ckpt.is_file() else None
+    )
     log(
         f"{variant}/fold{k}: start ({'resume after epoch ' + str(resume) if resume is not None else 'new'}); "
         f"head {head}, train {cnt['train']}, val {cnt['val']}, class weights {cw}"
@@ -223,13 +225,19 @@ def train_one(
         callbacks=[
             EpochFiles(d, f"{variant}/fold{k}", cfg.epochs, on_epoch),
             youden,
-            # after the run files (checkpoint callbacks run last), as the reference
-            # wrote the weights last; by default it would save at validation end
+            # the resume point, overwritten after every epoch. Not save_last: in
+            # Lightning 2.6 it refreshes last.ckpt only when a top-k checkpoint is
+            # saved, so with save_top_k=0 it was written once, when training ended.
+            # Saved after the run files (checkpoint callbacks run last), as the
+            # reference wrote the weights last; by default it would save at
+            # validation end, before them.
             ModelCheckpoint(
                 dirpath=d / "checkpoints",
-                save_top_k=0,
-                save_last=True,
+                filename="last",
+                save_top_k=1,
+                every_n_epochs=1,
                 save_on_train_epoch_end=True,
+                enable_version_counter=False,
             ),
         ],
         plugins=[AtomicCheckpointIO()],
